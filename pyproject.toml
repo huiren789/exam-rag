@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "examrag"
+version = "1.0.0"
+description = "有据可依的复习搭档——零依赖、可溯源的课程 RAG 命令行工具"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { file = "LICENSE" }
+dependencies = []
+authors = [{ name = "hrh666" }]
+
+[project.scripts]
+examrag = "examrag.cli:main"
+
+[tool.setuptools]
+packages = ["examrag"]
