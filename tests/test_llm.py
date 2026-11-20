@@ -1,6 +1,7 @@
 """LLM 层单元测试：mock 网络调用，覆盖错误翻译与成功路径。"""
 
 import json
+import socket
 import unittest
 import urllib.error
 from unittest import mock
@@ -36,6 +37,12 @@ class AskTests(unittest.TestCase):
             with self.assertRaises(ExamRAGError) as ctx:
                 ask("问题", api_key="sk-test")
         self.assertIn("网络", str(ctx.exception))
+
+    def test_timeout_friendly(self):
+        with mock.patch("urllib.request.urlopen", side_effect=socket.timeout("timed out")):
+            with self.assertRaises(ExamRAGError) as ctx:
+                ask("问题", api_key="sk-test")
+        self.assertIn("超时", str(ctx.exception))
 
     def test_bad_json(self):
         with mock.patch("urllib.request.urlopen",

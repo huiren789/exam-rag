@@ -5,6 +5,7 @@
 """
 
 import json
+import socket
 import urllib.error
 import urllib.request
 from typing import Optional
@@ -75,7 +76,8 @@ def ask(
         raise ExamRAGError(
             "连接模型服务失败：%s。请检查网络或 EXAMRAG_BASE_URL。" % exc.reason
         ) from exc
-    except TimeoutError as exc:
+    except (TimeoutError, socket.timeout) as exc:
+        # Python 3.8 的 socket.timeout 还不是 TimeoutError 的别名，两者都要接。
         raise ExamRAGError("请求模型服务超时，请稍后重试。") from exc
 
     try:
