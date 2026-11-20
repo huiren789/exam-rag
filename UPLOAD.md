@@ -7,18 +7,19 @@
 
 ## 0. 当前状态（我已帮你做完的部分）
 
-在本机 `C:/Users/hrh678/Desktop/GitHub` 目录里，我已经完成：
+在项目目录里，我已经完成：
 
 ```bash
 git init
 git config --local user.name  "hrh666"
-git config --local user.email "2181300673@qq.com"
+git config --local user.email "<你的 GitHub 邮箱>"
 git branch -M main
 git add .
 git commit -m "feat: ExamRAG 可溯源课程复习 RAG 工具（零依赖 + 测试 + CI）"
 ```
 
 也就是说：**本地仓库已经建好、身份已配置、首次提交已完成**。
+提交作者邮箱使用的是 GitHub 的 noreply 地址，不会把真实邮箱写进提交历史。
 你只需要做「在网页上建仓库」+「推送」两步。
 
 > 想核对状态，在该目录打开终端运行 `git status` 和 `git log --oneline -1`。
@@ -46,10 +47,10 @@ git commit -m "feat: ExamRAG 可溯源课程复习 RAG 工具（零依赖 + 测�
 
 ## 2. 推送到 GitHub
 
-在 `C:/Users/hrh678/Desktop/GitHub` 目录打开终端（Git Bash / PowerShell / CMD 都行），依次执行：
+在项目目录打开终端（Git Bash / PowerShell / CMD 都行），依次执行：
 
 ```bash
-cd C:/Users/hrh678/Desktop/GitHub
+cd <项目目录>
 
 git remote add origin https://github.com/hrh666/exam-rag.git
 git push -u origin main
@@ -86,7 +87,7 @@ GitHub 从 2021 年起不再允许用账号密码推送代码，要用 Token：
 
 ```bash
 # 生成密钥，一路回车即可
-ssh-keygen -t ed25519 -C "2181300673@qq.com"
+ssh-keygen -t ed25519 -C "<你的 GitHub 邮箱>"
 
 # 查看并复制公钥内容
 cat ~/.ssh/id_ed25519.pub
@@ -144,7 +145,7 @@ GitHub 仓库页面 → Settings → 拉到最底部 Danger Zone → Change visi
 ## 附：以后更新代码怎么提交
 
 ```bash
-cd C:/Users/hrh678/Desktop/GitHub
+cd <项目目录>
 # 修改文件后……
 python -m unittest discover -s tests -v   # 先跑测试
 git add .
