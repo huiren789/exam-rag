@@ -1,6 +1,6 @@
 # ExamRAG
 
-[![tests](https://github.com/hrh666/exam-rag/actions/workflows/tests.yml/badge.svg)](https://github.com/hrh666/exam-rag/actions/workflows/tests.yml)
+[![tests](https://github.com/huiren789/exam-rag/actions/workflows/tests.yml/badge.svg)](https://github.com/huiren789/exam-rag/actions/workflows/tests.yml)
 ![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue)
 ![MIT](https://img.shields.io/badge/license-MIT-green)
 
@@ -27,7 +27,7 @@ ExamRAG 把「找资料」这一步放在本地完成。检索不联网、不花
 需要 Python 3.8 或更高版本。克隆之后可以直接运行，不需要安装依赖：
 
 ```bash
-git clone https://github.com/hrh666/exam-rag.git
+git clone https://github.com/huiren789/exam-rag.git
 cd exam-rag
 python -m examrag
 ```
@@ -194,4 +194,4 @@ python -m unittest discover -s tests -v
 
 ## License
 
-[MIT](LICENSE) © 2026 hrh666
+[MIT](LICENSE) © 2026 huiren789
