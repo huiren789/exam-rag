@@ -6,7 +6,8 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # ubuntu-latest 已不再提供 Python 3.8，固定到 22.04 保留 3.8 覆盖。
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
