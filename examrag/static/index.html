@@ -93,17 +93,20 @@
 
 <div class="wrap">
   <div class="card">
-    <div class="tabs">
-      <button class="tab active" data-mode="ask">提问</button>
-      <button class="tab" data-mode="exam">出题</button>
-      <button class="tab" data-mode="retrieve">只看检索</button>
+    <div class="tabs" role="tablist" aria-label="功能切换">
+      <button class="tab active" data-mode="ask" id="tab-ask" role="tab"
+              aria-selected="true" aria-controls="result">提问</button>
+      <button class="tab" data-mode="exam" id="tab-exam" role="tab"
+              aria-selected="false" aria-controls="result" tabindex="-1">出题</button>
+      <button class="tab" data-mode="retrieve" id="tab-retrieve" role="tab"
+              aria-selected="false" aria-controls="result" tabindex="-1">只看检索</button>
     </div>
 
-    <label id="input-label">你的问题</label>
+    <label id="input-label" for="query">你的问题</label>
     <input type="text" id="query" placeholder="例如：难度的定义是什么" autocomplete="off">
 
     <div class="row">
-      <span class="hint">检索块数</span>
+      <label class="hint" for="topk" style="margin:0">检索块数</label>
       <input type="number" id="topk" value="3" min="1" max="8">
       <label class="hint" style="margin:0;display:flex;align-items:center;gap:5px;cursor:pointer">
         <input type="checkbox" id="semantic" style="width:auto;margin:0"> TF-IDF 检索
@@ -114,8 +117,8 @@
       <button class="run" id="run">提交</button>
     </div>
 
-    <div class="status" id="status">正在检查服务状态…</div>
-    <div class="result" id="result"></div>
+    <div class="status" id="status" role="status">正在检查服务状态…</div>
+    <div class="result" id="result" role="tabpanel" aria-live="polite"></div>
   </div>
 </div>
 
@@ -139,15 +142,34 @@ const LABELS = {
 };
 const NO_KEY_TIP = '当前服务未配置模型密钥，回答类功能不可用。「只看检索」仍可离线使用，能看到程序挑出了哪些资料块。';
 
-document.querySelectorAll('.tab').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    mode = btn.dataset.mode;
-    $('input-label').textContent = LABELS[mode][0];
-    $('query').placeholder = LABELS[mode][1];
-    $('result').className = 'result';
+function selectTab(btn) {
+  document.querySelectorAll('.tab').forEach(b => {
+    b.classList.remove('active');
+    b.setAttribute('aria-selected', 'false');
+    b.tabIndex = -1;
   });
+  btn.classList.add('active');
+  btn.setAttribute('aria-selected', 'true');
+  btn.tabIndex = 0;
+  mode = btn.dataset.mode;
+  $('input-label').textContent = LABELS[mode][0];
+  $('query').placeholder = LABELS[mode][1];
+  $('result').className = 'result';
+  $('result').innerHTML = '';
+}
+
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => selectTab(btn));
+});
+// ARIA tabs 键盘惯例：左右方向键在标签间移动。
+document.querySelector('.tabs').addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  const tabs = Array.from(document.querySelectorAll('.tab'));
+  const idx = tabs.indexOf(document.activeElement);
+  if (idx < 0) return;
+  const next = tabs[(idx + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+  next.focus();
+  selectTab(next);
 });
 
 $('query').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('run').click(); });
@@ -162,7 +184,7 @@ async function checkHealth() {
     $('vector').title = hasVector ? '使用 embedding 向量检索' : '服务端未安装向量检索依赖';
     $('status').innerHTML =
       '<span class="dot ' + (on ? 'on' : 'off') + '"></span>' +
-      '服务正常 · 资料 ' + d.chunks_available + ' 块 · 模型 ' + d.model +
+      '服务正常 · 资料 ' + escapeHtml(d.chunks_available) + ' 块 · 模型 ' + escapeHtml(d.model) +
       ' · 密钥' + (on ? '已配置' : '未配置（可用「只看检索」）') +
       ' · 向量检索' + (hasVector ? '可用' : '未安装');
   } catch (e) {
@@ -184,13 +206,30 @@ function evidenceHtml(items) {
     items.map(e =>
       '<div class="evidence"><span class="lv">' + escapeHtml(e.tag) + ' · ' + escapeHtml(e.level) +
       '</span><br>' + escapeHtml(e.sentence) +
-      ' <span class="score">重合 ' + e.score + '</span></div>'
+      ' <span class="score">重合 ' + escapeHtml(e.score) + '</span></div>'
     ).join('');
+}
+
+function detailText(detail) {
+  // FastAPI 校验失败（422）时 detail 是数组；字符串时原样用。
+  if (Array.isArray(detail)) {
+    return detail.map(err => {
+      const loc = (err.loc || []).slice(1).join('.');
+      return (loc ? loc + '：' : '') + (err.msg || JSON.stringify(err));
+    }).join('\n');
+  }
+  return detail ? String(detail) : '请求失败';
+}
+
+function showWarn(msg) {
+  // 内联错误提示，替代 alert()，不阻塞页面且能被读屏软件感知。
+  $('result').innerHTML = '<div class="warn">' + escapeHtml(msg).replace(/\n/g, '<br>') + '</div>';
+  $('result').className = 'result show';
 }
 
 $('run').addEventListener('click', async () => {
   const q = $('query').value.trim();
-  if (!q) { alert('请先输入' + LABELS[mode][0]); return; }
+  if (!q) { showWarn('请先输入' + LABELS[mode][0]); $('query').focus(); return; }
   const topK = Math.max(1, Math.min(8, parseInt($('topk').value, 10) || 3));
   $('run').disabled = true;
   $('run').textContent = '处理中…';
@@ -210,16 +249,16 @@ $('run').addEventListener('click', async () => {
     });
     const data = await r.json();
     if (!r.ok) {
-      const msg = (data.detail && data.detail.indexOf('API Key') >= 0)
-        ? NO_KEY_TIP + '\n\n原始提示：' + data.detail
-        : (data.detail || '请求失败');
-      $('result').innerHTML = '<div class="warn">' + escapeHtml(msg).replace(/\n/g, '<br>') + '</div>';
-      $('result').className = 'result show';
+      const raw = detailText(data.detail);
+      const msg = (raw.indexOf('API Key') >= 0)
+        ? NO_KEY_TIP + '\n\n原始提示：' + raw
+        : raw;
+      showWarn(msg);
       return;
     }
     let html = '';
     if (mode === 'retrieve') {
-      html += '<div class="block"><h3>检索到 ' + data.count + ' 块资料</h3>' + tagHtml(data.sources);
+      html += '<div class="block"><h3>检索到 ' + escapeHtml(data.count) + ' 块资料</h3>' + tagHtml(data.sources);
       (data.chunks || []).forEach(c => {
         html += '<div class="chunk"><span class="lv">' + escapeHtml(c.level) + ' · ' + escapeHtml(c.tag) +
                 '</span><br>' + escapeHtml(c.text) + '</div>';
@@ -244,8 +283,7 @@ $('run').addEventListener('click', async () => {
     $('result').innerHTML = html;
     $('result').className = 'result show';
   } catch (e) {
-    $('result').innerHTML = '<div class="warn">请求出错：' + escapeHtml(e.message) + '</div>';
-    $('result').className = 'result show';
+    showWarn('请求出错：' + e.message);
   } finally {
     $('run').disabled = false;
     $('run').textContent = '提交';

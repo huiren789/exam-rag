@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "examrag"
-version = "0.5.1"
-description = "ExamRAG — 有据可依的课程复习搭档：可溯源的课程 RAG 工具，命令行 + 可选 HTTP API，核心零依赖，已有 11 位同学体验使用"
+version = "0.5.2"
+description = "ExamRAG — 有据可依的课程复习搭档：可溯源的课程 RAG 工具，命令行 + 可选 HTTP API，核心零依赖"
 readme = "README.md"
 requires-python = ">=3.8"
 license = { file = "LICENSE" }
@@ -45,3 +45,16 @@ packages = ["examrag"]
 
 [tool.setuptools.package-data]
 examrag = ["static/*"]
+
+# 静态检查：宽松规则集，只挡真问题（语法/未定义名/未使用导入等）。
+[tool.ruff]
+target-version = "py38"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+# retrieval.py 保留旧导入路径的兼容导出，tests 里部分导入作共享参考。
+"examrag/retrieval.py" = ["F401"]
+"tests/*" = ["F401"]

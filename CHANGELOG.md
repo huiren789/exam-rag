@@ -2,6 +2,28 @@
 
 所有显著变更都记录在这里。格式参考 Keep a Changelog，版本遵循语义化版本。
 
+## [0.5.2] - 2026-11-22
+
+### 修复
+- API 错误响应不再可能泄露本机绝对路径：`/health` 的 `material_error` 与三个 POST 端点的资料缺失错误统一为不含文件系统痕迹的固定文案。
+- `--dry-run --vector` 现在真正离线：改用内置的确定性离线向量桩，绝不加载或下载真实 embedding 模型；缺依赖的友好提示保留给真实模式。
+- CLI `-q` 输出示例补上「依据句」行，`examples/demo_question.txt`、`examples/demo_exam.txt` 与 README 示例均逐字取自真实运行输出。
+
+### 重构（无行为变化）
+- bigram 计数与客套词剥离收敛到 `models.bigrams` / `models.strip_fillers` 单一实现，词面 / TF-IDF / 证据句三处共用同一口径；`retrieval.bigrams` / `retrieval.clean` 保留为兼容名。评测指标前后完全一致（hit@1 0.778 / hit@3 0.889 / MRR 0.815）。
+- 「整门课」触发词收进 `config.COURSE_SCOPE_KEYS`，与 `FOCUS_KEYS` 同一处维护。
+- 测试共享夹具 `tests/helpers.py`：资料块样本、ask 桩、向量桩三处重复定义收敛到一个文件。
+- 测试不再硬编码版本号与资料块数（改为读 `config.VERSION` 与范围断言）。
+
+### 工程化
+- CI：push 限定 main 分支、并发去重、job 超时、pip 缓存、actions 固定到 commit SHA，新增 ruff 静态检查 job（宽松规则集）。
+- 演示页无障碍：tab 补 `role` / `aria-selected` 与方向键切换、结果区 `aria-live`、`alert()` 改内联提示、处理 FastAPI 422 数组型 detail、动态数值统一转义。
+- 端口解析兜底：`web.py` 非法 PORT 回落默认值；`python -m examrag.api` 支持 `EXAMRAG_API_PORT`。
+- `.env.example` 补 `EXAMRAG_VECTOR_MODEL` / `EXAMRAG_VECTOR_CACHE`；移除已过时的 `UPLOAD.md`；pyproject 简介去掉营销句。
+
+### 测试
+- 测试 82 → 85；新增 API 路径泄露回归、dry-run 向量离线性（问答与出题）用例。
+
 ## [0.5.1] - 2026-11-22
 
 ### 新增

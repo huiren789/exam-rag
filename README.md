@@ -26,7 +26,7 @@ ExamRAG 把「找资料」这一步放在本地完成。检索不联网、不花
 - 离线演示：`--dry-run` 不调用模型，只打印检索结果和提示词，不需要密钥。
 - Web 界面：一个单页演示界面，提问 / 出题 / 只看检索三个标签，展示带出处的回答；未配密钥时「只看检索」仍可用。
 - 可选 HTTP API：FastAPI 提供 `/ask`、`/exam`、`/retrieve`、`/health` 四个接口，带自动生成的 Swagger 文档。
-- 零第三方依赖：核心与语义检索都用 Python 标准库；Web/API 与向量检索按需安装。82 个离线测试，CI 覆盖 Python 3.8 / 3.11 / 3.13。
+- 零第三方依赖：核心与语义检索都用 Python 标准库；Web/API 与向量检索按需安装。85 个离线测试，CI 覆盖 Python 3.8 / 3.11 / 3.13，并含 ruff 静态检查。
 
 ## 安装方法
 
@@ -95,7 +95,7 @@ python -m examrag.evaluate --mode lexical      # 跑检索评测
 | `--topic` | 查询某主题的知识点或重难点 |
 | `--top-k N` | 检索几块资料，默认 3；重难点汇总会适当放宽 |
 | `--material PATH` | 指定资料文件 |
-| `--dry-run` | 只显示检索结果和提示词，不联网 |
+| `--dry-run` | 只显示检索结果和提示词，不联网（含 `--vector` 组合，向量改用离线桩） |
 | `--semantic` | 用 TF-IDF 语义检索挑块（默认词面匹配），离线零依赖 |
 | `--vector` | 用 embedding 向量检索（需安装 `.[vector]` 并下载模型） |
 | `--version` | 查看版本 |
@@ -190,6 +190,7 @@ python -m examrag -q "难度的定义" --dry-run
 
 ```text
 （检索到：掌握·难度的定义、理解·信度的定义、理解·效度的定义）
+（依据句：掌握·难度的定义：在报告难度时应指明是哪种难度的计算方法，由于当前国内外文献中普遍使用得分率（通过率）…（重合 3）；理解·信度的定义：信度可定义为真分数方差与实得分数方差的比率：rXX=S²T/S²X（公式4-3），也…（重合 1）；理解·效度的定义：在教育测量理论中，效度（rXY）被定义为在测验总变异中与测量目的有关的真实变异数，即…（重合 1））
 
 --- 真实模式下将发送给模型的提示词 ---
 只根据以下资料回答问题。资料里没有的，就回答「资料中未提及」。回答后注明依据了哪段资料。
@@ -201,7 +202,9 @@ python -m examrag -q "难度的定义" --dry-run
 --- （已跳过 API 调用，dry-run 模式）---
 ```
 
-这一段是从实际运行输出里摘录的，省略了过长的资料正文。更多示例在 `examples/demo_question.txt` 和 `examples/demo_exam.txt`。
+这一段是从实际运行输出里逐字摘录的，省略了过长的资料正文。更多示例在 `examples/demo_question.txt` 和 `examples/demo_exam.txt`。
+
+dry-run 的离线承诺覆盖所有检索模式：即使组合 `--vector`，也会改用内置的离线向量桩（确定性假向量），绝不加载或下载真实 embedding 模型。真实模式下向量检索才需要安装 `pip install -e ".[vector]"`。
 
 ## 检索评测
 
@@ -244,10 +247,9 @@ examrag/
   web.py         Web 演示界面入口
   static/        演示页 HTML
 data/material.txt   内置资料，99 块
-tests/              82 个离线测试（API 测试在缺依赖时自动跳过）
+tests/              85 个离线测试（API 测试在缺依赖时自动跳过）
 examples/           示例输出，含 api_examples.txt 与 eval_cases.json
 docs/adr/           架构决策记录
-UPLOAD.md           上传 GitHub 的步骤
 tool.py             旧入口
 ```
 
@@ -257,7 +259,7 @@ tool.py             旧入口
 python -m unittest discover -s tests -v
 ```
 
-82 个测试，不需要密钥，也不需要联网。核心 68 个在任何环境都跑（向量测试用注入桩，不下载模型）；14 个 API / Web 测试在装了 `fastapi`/`httpx` 时才运行，缺依赖会自动跳过。GitHub Actions 在每次 push 和 pull request 时分两组运行：核心测试覆盖 Python 3.8 / 3.11 / 3.13，API 测试覆盖 3.11 / 3.13。
+85 个测试，不需要密钥，也不需要联网。核心 70 个在任何环境都跑（向量测试用注入桩，不下载模型）；15 个 API / Web 测试在装了 `fastapi`/`httpx` 时才运行，缺依赖会自动跳过。GitHub Actions 在 push（main 分支）和 pull request 时分三组运行：核心测试覆盖 Python 3.8 / 3.11 / 3.13，API 测试覆盖 3.11 / 3.13，另有 ruff 静态检查。
 
 资料块在 `models.py` 里解析成 `Chunk` 对象，标签和掌握等级全链路只读字段，不再重复正则。词面、TF-IDF 与 embedding 三种检索器遵守同一个函数契约，策略层通过 `retrieve_fn` 注入检索器，所以查询改写、重难点汇总和并列概念拆分对三种模式都生效。三种检索器的分数口径不同，命中阈值分别设定，避免误触发查询改写。
 

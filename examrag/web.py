@@ -41,7 +41,11 @@ def main() -> None:
             "缺少 uvicorn。请先运行：pip install -e \".[api]\""
         ) from exc
     port_env = os.environ.get("PORT")
-    port = int(port_env) if port_env else 8000
+    # 端口环境变量非法（如含非数字）时回落默认值，不让部署环境的小问题拦住启动。
+    try:
+        port = int(port_env) if port_env else 8000
+    except ValueError:
+        port = 8000
     # 本地默认只绑本机；部署环境会注入 PORT，此时对外绑定 0.0.0.0。
     default_host = "0.0.0.0" if port_env else "127.0.0.1"
     host = os.environ.get("HOST", default_host)
