@@ -58,6 +58,18 @@ class VectorTests(unittest.TestCase):
             self.assertEqual(calls[0], ["难度", "信度"])
             self.assertEqual(calls[1], ["效度"])  # 只有新增文本需要计算
 
+    def test_stub_without_cache_path_skips_default_cache(self):
+        """注入向量桩且未指定缓存路径时，绝不读写默认缓存文件。
+
+        回归背景：CI 上 dry-run 离线桩向量曾写进默认缓存，污染后续
+        fake_embed 测试（桩向量与真实向量共用同一键空间）。
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "vectors.json"
+            with mock.patch.object(config, "get_vector_cache_path", return_value=target):
+                vector_retrieve("难度", CHUNKS, embed_fn=fake_embed)
+            self.assertFalse(target.exists())
+
     def test_missing_dependency_is_friendly(self):
         with mock.patch.dict(sys.modules, {"sentence_transformers": None}):
             with self.assertRaises(ExamRAGError) as ctx:

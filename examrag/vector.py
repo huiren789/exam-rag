@@ -116,11 +116,21 @@ def embed_texts(
     model_name: Optional[str] = None,
     cache_path: Optional[Union[str, Path]] = None,
 ) -> List[Vector]:
-    """批量取向量；命中缓存的原文不再重复计算。"""
+    """批量取向量；命中缓存的原文不再重复计算。
+
+    缓存策略：只有真实模型运行（embed_fn 未注入）或显式指定缓存路径时才读写
+    缓存文件。注入桩函数（测试 / dry-run 离线桩）默认不落缓存——桩向量与真实
+    模型向量共用同一个「模型名 + 原文」键空间，混写会互相污染结果。
+    """
     if not texts:
         return []
     model_name = model_name or config.get_vector_model()
     fn = embed_fn or get_embed_fn(model_name)
+    if cache_path is None and embed_fn is not None:
+        vectors = fn(list(texts))
+        if len(vectors) != len(texts):
+            raise ExamRAGError("向量模型返回的向量数量与输入文本数量不一致。")
+        return [[float(x) for x in vector] for vector in vectors]
     path = _cache_file(cache_path)
     cache = _read_cache(path)
     keys = [_cache_key(model_name, text) for text in texts]
