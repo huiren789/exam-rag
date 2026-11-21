@@ -2,11 +2,12 @@
 
 import unittest
 
+from examrag.models import as_chunks
+
 try:
     from fastapi.testclient import TestClient
     from examrag.api import create_app
     from examrag import service
-    from examrag.models import as_chunks
     HAS_API_DEPS = True
 except ImportError:
     HAS_API_DEPS = False
