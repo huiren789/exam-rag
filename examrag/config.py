@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import Dict, Optional
 
-VERSION = "0.5.2"
+VERSION = "0.6.0"
 
 # 仓库根目录：无论从哪个工作目录启动，都能找到内置资料。
 ROOT = Path(__file__).resolve().parent.parent

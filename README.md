@@ -26,7 +26,7 @@ ExamRAG 把「找资料」这一步放在本地完成。检索不联网、不花
 - 离线演示：`--dry-run` 不调用模型，只打印检索结果和提示词，不需要密钥。
 - Web 界面：一个单页演示界面，提问 / 出题 / 只看检索三个标签，展示带出处的回答；未配密钥时「只看检索」仍可用。
 - 可选 HTTP API：FastAPI 提供 `/ask`、`/exam`、`/retrieve`、`/prompt`、`/health` 五个接口，带自动生成的 Swagger 文档。
-- 零第三方依赖：核心与语义检索都用 Python 标准库；Web/API 与向量检索按需安装。85 个离线测试，CI 覆盖 Python 3.8 / 3.11 / 3.13，并含 ruff 静态检查。
+- 零第三方依赖：核心与语义检索都用 Python 标准库；Web/API 与向量检索按需安装。89 个离线测试，CI 覆盖 Python 3.8 / 3.11 / 3.13，并含 ruff 静态检查。
 
 ## 安装方法
 
@@ -248,7 +248,7 @@ examrag/
   web.py         Web 演示界面入口
   static/        演示页 HTML
 data/material.txt   内置资料，99 块
-tests/              85 个离线测试（API 测试在缺依赖时自动跳过）
+tests/              89 个离线测试（API 测试在缺依赖时自动跳过）
 examples/           示例输出，含 api_examples.txt 与 eval_cases.json
 docs/adr/           架构决策记录
 tool.py             旧入口
@@ -260,7 +260,7 @@ tool.py             旧入口
 python -m unittest discover -s tests -v
 ```
 
-85 个测试，不需要密钥，也不需要联网。核心 70 个在任何环境都跑（向量测试用注入桩，不下载模型）；15 个 API / Web 测试在装了 `fastapi`/`httpx` 时才运行，缺依赖会自动跳过。GitHub Actions 在 push（main 分支）和 pull request 时分三组运行：核心测试覆盖 Python 3.8 / 3.11 / 3.13，API 测试覆盖 3.11 / 3.13，另有 ruff 静态检查。
+89 个测试，不需要密钥，也不需要联网。核心 71 个在任何环境都跑（向量测试用注入桩，不下载模型）；18 个 API / Web 测试在装了 `fastapi`/`httpx` 时才运行，缺依赖会自动跳过。GitHub Actions 在 push（main 分支）和 pull request 时分三组运行：核心测试覆盖 Python 3.8 / 3.11 / 3.13，API 测试覆盖 3.11 / 3.13，另有 ruff 静态检查。
 
 资料块在 `models.py` 里解析成 `Chunk` 对象，标签和掌握等级全链路只读字段，不再重复正则。词面、TF-IDF 与 embedding 三种检索器遵守同一个函数契约，策略层通过 `retrieve_fn` 注入检索器，所以查询改写、重难点汇总和并列概念拆分对三种模式都生效。三种检索器的分数口径不同，命中阈值分别设定，避免误触发查询改写。
 
