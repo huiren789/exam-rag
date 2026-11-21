@@ -24,3 +24,25 @@ jobs:
       # 项目零第三方依赖，无需 pip install。
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
+
+  # 可选 HTTP API：单独安装依赖后在受支持的 Python 版本上验证接口。
+  api:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install optional API dependencies
+        run: python -m pip install "fastapi>=0.100" "uvicorn>=0.20" "httpx>=0.24"
+
+      - name: Run tests (core + API)
+        run: python -m unittest discover -s tests -v

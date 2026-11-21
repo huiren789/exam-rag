@@ -4,7 +4,7 @@
 ![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue)
 ![MIT](https://img.shields.io/badge/license-MIT-green)
 
-ExamRAG 是一个零依赖、可溯源的课程复习命令行工具——只用本地词面检索挑出资料块交给大模型作答，每个回答都能翻回原文核对。已有 11 位同学体验使用。
+ExamRAG 是一个可溯源的课程复习工具——只用本地词面检索挑出资料块交给大模型作答，每个回答都能翻回原文核对。提供命令行和可选的 HTTP API 两种用法，核心功能零第三方依赖。已有 11 位同学体验使用。
 
 ## 解决什么问题
 
@@ -20,7 +20,8 @@ ExamRAG 把「找资料」这一步放在本地完成。检索不联网、不花
 - 重难点汇总：问「信度的重难点」这类问题时，让模型从标题清单里挑相关块。
 - 并列概念拆分：问「信度和难度」时，拆成两段分别检索再合并结果。
 - 离线演示：`--dry-run` 不调用模型，只打印检索结果和提示词，不需要密钥。
-- 零第三方依赖：只用 Python 标准库。31 个离线测试，CI 覆盖 Python 3.8 / 3.11 / 3.13。
+- 可选 HTTP API：FastAPI 提供 `/ask`、`/exam`、`/retrieve`、`/health` 四个接口，带自动生成的 Swagger 文档。
+- 零第三方依赖：核心只用 Python 标准库；API 按需安装。47 个离线测试，CI 覆盖 Python 3.8 / 3.11 / 3.13。
 
 ## 安装方法
 
@@ -81,6 +82,49 @@ python -m examrag -q "信度" --material my.txt  # 换一份资料
 | `--version` | 查看版本 |
 
 退出码：`0` 成功，`1` 配置、网络或资料错误，`130` 用户按 Ctrl+C 中断。
+
+## HTTP API（可选）
+
+核心工具不装任何第三方库也能用。如果想把它接进 Web 页面或其他程序，再装 API 那一组依赖：
+
+```bash
+pip install -e ".[api]"
+python -m examrag.api        # 启动后访问 http://127.0.0.1:8000/docs
+```
+
+也可以直接 `uvicorn examrag.api:app --reload`。`/docs` 是 FastAPI 自动生成的交互文档，可直接在页面里填参数调试。
+
+四个接口：
+
+| 方法 | 路径 | 作用 | 需要密钥 |
+| --- | --- | --- | --- |
+| GET | `/health` | 健康检查（版本、资料块数、密钥是否已配置，不回传密钥本身） | 否 |
+| POST | `/retrieve` | 纯本地检索，返回命中的资料块、标签与掌握等级 | 否 |
+| POST | `/ask` | 提问，检索后调用模型，回答注明依据 | 是 |
+| POST | `/exam` | 出题，按掌握等级加权检索后让模型出题 | 是 |
+
+请求和响应都是 JSON。例如：
+
+```bash
+curl -X POST http://127.0.0.1:8000/retrieve \
+  -H "Content-Type: application/json" \
+  -d '{"question": "难度的定义", "top_k": 2}'
+```
+
+```json
+{
+  "question": "难度的定义",
+  "count": 2,
+  "sources": ["掌握·难度的定义、理解·信度的定义"],
+  "chunks": [
+    {"tag": "掌握·难度的定义", "level": "掌握", "text": "难度是指……"}
+  ]
+}
+```
+
+`/ask` 的请求体是 `{"question": "...", "top_k": 3}`，响应含 `answer`、`sources`（依据块标签）和 `note`（查询改写提示）；`/exam` 的请求体是 `{"topic": "...", "top_k": 3}`，响应额外含 `levels`（检索块的掌握等级）。缺密钥、资料路径错误、`top_k < 1` 都会返回 400 和中文说明。
+
+密钥只从环境变量或 `.env` 读取，不经过 HTTP 请求，也不会出现在响应里。
 
 ## 输入 / 输出案例
 
@@ -155,9 +199,11 @@ examrag/
   retrieval.py   本地检索
   llm.py         模型调用和错误处理
   smart.py       查询改写、重难点、并列概念拆分
+  service.py     CLI 与 API 共用的检索、提示词与结果组装
   cli.py         命令行参数和交互循环
+  api.py         可选的 FastAPI HTTP 接口
 data/material.txt   内置资料，99 块
-tests/              31 个离线测试
+tests/              47 个离线测试（API 测试在缺依赖时自动跳过）
 examples/           示例输出
 UPLOAD.md           上传 GitHub 的步骤
 tool.py             旧入口
@@ -169,7 +215,7 @@ tool.py             旧入口
 python -m unittest discover -s tests -v
 ```
 
-31 个测试，不需要密钥，也不需要联网。GitHub Actions 在每次 push 和 pull request 时运行同一套测试。
+47 个测试，不需要密钥，也不需要联网。核心 39 个在任何环境都跑；8 个 API 测试在装了 `fastapi`/`httpx` 时才运行，缺依赖会自动跳过。GitHub Actions 在每次 push 和 pull request 时分两组运行：核心测试覆盖 Python 3.8 / 3.11 / 3.13，API 测试覆盖 3.11 / 3.13。
 
 ## 资料范围
 
@@ -180,14 +226,15 @@ python -m unittest discover -s tests -v
 - 检索是词面匹配，不理解语义。不带主题词的提问，命中率不如直接写关键词。
 - 资料要按格式手工整理，目前不能直接导入 PDF 或 Word。
 - 不支持追问上下文，每个问题都独立检索。
-- 只有命令行界面。
-- 回答质量取决于所配的模型；调用链已用本地模拟接口测过，但没有用真实密钥调用商业服务。
+- HTTP API 默认只监听 127.0.0.1，没有鉴权；要对外暴露需自行加认证和限流。
+- 回答质量取决于所配的模型；调用链已用桩函数与本地模拟服务测过，但没有用真实密钥调用商业服务。
 - 资料如果来自不可信来源，可能存在提示词注入风险，不要把密钥放进资料文件。
 
 ## Roadmap
 
 - [x] 关键词检索、出题、分层加权、查询改写
 - [x] 单元测试、CI、环境变量配置、dry-run
+- [x] 可选 HTTP API（检索 / 问答 / 出题 / 健康检查 + Swagger 文档）
 - [ ] 向量语义检索
 - [ ] Web 界面
 - [ ] 导入 PDF / Word 资料

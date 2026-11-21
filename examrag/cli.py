@@ -3,10 +3,9 @@
 import argparse
 from typing import Callable, List, Sequence
 
-from . import config
+from . import config, service
 from .llm import ExamRAGError, ask as default_ask
-from .retrieval import level_of, load_chunks, retrieve, tags_of
-from .smart import smart_context
+from .retrieval import tags_of
 
 AskFn = Callable[[str], str]
 
@@ -46,24 +45,6 @@ def _dry_run_ask(prompt: str) -> str:
     return ""
 
 
-def _exam_prompt(topic: str, related: Sequence[str]) -> str:
-    context = "\n\n".join(related)
-    return (
-        "根据以下资料，出 3 道复习题并给出答案，题型可以是简答题、"
-        "概念辨析题、列举题。资料块标签里标了掌握等级，"
-        "尽量把题出在「掌握」级内容上，「了解」级内容最多出 1 道。"
-        "只依据资料，不要编造。\n\n资料：\n" + context
-    )
-
-
-def _question_prompt(question: str, related: Sequence[str]) -> str:
-    context = "\n\n".join(related)
-    return (
-        "只根据以下资料回答问题。资料里没有的，就回答「资料中未提及」。"
-        "回答后注明依据了哪段资料。\n\n资料：\n" + context + "\n\n问题：" + question
-    )
-
-
 def _run_exam(
     topic: str,
     chunks: Sequence[str],
@@ -72,10 +53,9 @@ def _run_exam(
     dry_run: bool,
 ) -> None:
     """出题模式：按掌握等级加权检索，再让模型出题。"""
-    related = retrieve(topic, chunks, top_k=top_k, weighted=True)
-    levels = "、".join(level_of(chunk) for chunk in related)
+    related, levels, prompt = service.prepare_exam(topic, chunks, top_k=top_k)
     print("（检索到：" + tags_of(related) + "｜等级：" + levels + "）")
-    answer = ask_fn(_exam_prompt(topic, related))
+    answer = ask_fn(prompt)
     if not dry_run:
         print("\nAI：", answer, "\n")
 
@@ -88,11 +68,11 @@ def _run_question(
     dry_run: bool,
 ) -> None:
     """普通问答：检索上下文、拼提示词、输出回答。"""
-    related, note = smart_context(question, chunks, top_k=top_k, ask_fn=ask_fn)
+    related, note, prompt = service.prepare_question(question, chunks, top_k=top_k, ask_fn=ask_fn)
     if note:
         print(note)
     print("（检索到：" + tags_of(related) + "）")
-    answer = ask_fn(_question_prompt(question, related))
+    answer = ask_fn(prompt)
     if not dry_run:
         print("\nAI：", answer, "\n")
 
@@ -129,9 +109,7 @@ def main(argv: List[str] = None) -> int:
 
     ask_fn: AskFn = _dry_run_ask if args.dry_run else default_ask
     try:
-        chunks = load_chunks(config.resolve_material(args.material))
-        if not chunks:
-            raise ExamRAGError("资料文件为空，请检查 --material 指向的文件。")
+        chunks = service.load_material(args.material)
 
         if args.exam is not None:
             topic = (args.exam or args.topic or args.question or "").strip()

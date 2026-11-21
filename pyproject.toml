@@ -4,13 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "examrag"
-version = "0.1.0"
-description = "ExamRAG — 有据可依的课程复习搭档：零依赖、可溯源的命令行 RAG 工具，已有 11 位同学体验使用"
+version = "0.2.0"
+description = "ExamRAG — 有据可依的课程复习搭档：可溯源的课程 RAG 工具，命令行 + 可选 HTTP API，核心零依赖，已有 11 位同学体验使用"
 readme = "README.md"
 requires-python = ">=3.8"
 license = { file = "LICENSE" }
 dependencies = []
 authors = [{ name = "huiren789" }]
+
+# 核心 CLI 零依赖；只有需要 HTTP API 时才安装这一组。
+[project.optional-dependencies]
+api = ["fastapi>=0.100", "uvicorn>=0.20", "httpx>=0.24"]
 
 [project.scripts]
 examrag = "examrag.cli:main"
