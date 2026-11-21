@@ -6,14 +6,9 @@ import unittest
 from pathlib import Path
 
 from examrag import evaluate
-from examrag.models import as_chunks
+from tests.helpers import SAMPLE_CHUNKS, fake_embed
 
-
-CHUNKS = as_chunks([
-    "【掌握·难度的定义】难度是试题难易程度的指标。",
-    "【理解·信度的定义】信度是测验结果的一致性程度。",
-    "【了解·效度的定义】效度指测验测到特质的程度。",
-])
+CHUNKS = SAMPLE_CHUNKS
 
 CASES = {
     "cases": [
@@ -21,10 +16,6 @@ CASES = {
         {"question": "信度", "expected": ["理解·信度的定义"]},
     ]
 }
-
-
-def fake_embed(texts):
-    return [[1.0 if "难度" in t else 0.0, 1.0 if "信度" in t else 0.0] for t in texts]
 
 
 class EvaluateTests(unittest.TestCase):

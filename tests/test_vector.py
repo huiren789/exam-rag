@@ -10,19 +10,7 @@ from examrag import config, service
 from examrag.llm import ExamRAGError
 from examrag.models import as_chunks, evidence_sentences
 from examrag.vector import embed_texts, get_embed_fn, vector_retrieve
-
-
-def fake_embed(texts):
-    """按关键词给三维向量：难度 / 信度 / 效度各占一维。"""
-    result = []
-    for text in texts:
-        vec = [
-            1.0 if "难度" in text else 0.0,
-            1.0 if "信度" in text else 0.0,
-            1.0 if "效度" in text else 0.0,
-        ]
-        result.append(vec if any(vec) else [0.1, 0.1, 0.1])
-    return result
+from tests.helpers import fake_embed
 
 
 CHUNKS = as_chunks([

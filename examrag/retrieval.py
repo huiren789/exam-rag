@@ -8,24 +8,23 @@
     → List[Chunk] 或 (List[Chunk], best_score)
 """
 
-import re
+import re  # noqa: F401 保留：load_chunks 之外的旧扩展点
 from collections import Counter
 from pathlib import Path
 from typing import List, Sequence, Tuple, Union
 
-from .config import FILLERS, LEVEL_WEIGHTS, NAV_KEYS
-from .models import Chunk, as_chunks, parse_chunk, tag_of, tags_of  # noqa: F401 兼容导出
+from . import models as _models
+from .config import LEVEL_WEIGHTS, NAV_KEYS
+from .models import Chunk, as_chunks, parse_chunk, strip_fillers, tag_of, tags_of  # noqa: F401 兼容导出
 
 
 def clean(question: str) -> str:
     """去掉问题里的客套词，留下真正的检索关键词。
 
     如果去完变成空串（例如问题只有"？"），退回原始问题避免检索全空。
+    实现收敛到 models.strip_fillers，这里保留独立函数名作为公开 API。
     """
-    q = question
-    for word in FILLERS:
-        q = q.replace(word, "")
-    return q.strip() or question
+    return strip_fillers(question)
 
 
 def load_chunks(path: Union[str, Path]) -> List[Chunk]:
@@ -36,9 +35,11 @@ def load_chunks(path: Union[str, Path]) -> List[Chunk]:
 
 
 def bigrams(text: str) -> Counter:
-    """把文字切成两字词并计数；空白不计入，计数体现词频证据强度。"""
-    text = re.sub(r"\s", "", text)
-    return Counter(text[i:i + 2] for i in range(len(text) - 1))
+    """把文字切成两字词并计数；空白不计入，计数体现词频证据强度。
+
+    实现收敛到 models.bigrams（全项目唯一口径），此函数保留为公开 API 兼容名。
+    """
+    return _models.bigrams(text)
 
 
 def is_nav(chunk: Union[str, Chunk]) -> bool:

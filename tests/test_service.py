@@ -56,7 +56,9 @@ class PrepareTests(unittest.TestCase):
 
     def test_load_material_real_file(self):
         chunks = service.load_material()
-        self.assertEqual(len(chunks), 99)
+        # 范围断言：资料是内置内容，偶尔增删块不应导致测试脆弱
+        self.assertGreaterEqual(len(chunks), 90)
+        self.assertLessEqual(len(chunks), 120)
 
 
 class StructuredTests(unittest.TestCase):

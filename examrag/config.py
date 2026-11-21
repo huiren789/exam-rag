@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import Dict, Optional
 
-VERSION = "0.5.1"
+VERSION = "0.5.2"
 
 # 仓库根目录：无论从哪个工作目录启动，都能找到内置资料。
 ROOT = Path(__file__).resolve().parent.parent
@@ -42,6 +42,9 @@ LEVEL_WEIGHTS: Dict[str, int] = {"掌握": 3, "理解": 2, "了解": 1}
 
 # 汇总型问题的触发词。
 FOCUS_KEYS = ("重难点", "重点", "考点", "必考")
+
+# 「整门课 / 整本书」类汇总问题的触发词：命中后重难点检索名额放宽到 8 块。
+COURSE_SCOPE_KEYS = ("整门课", "整本书", "全课程", "所有章", "课程的重难点")
 
 # 策略层判断「这次检索是否命中」的最低分。两种检索器分数口径不同：
 # 词面检索是共同 bigram 出现次数（可达几十），语义检索是余弦相似度（0~1），

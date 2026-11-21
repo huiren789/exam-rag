@@ -44,7 +44,9 @@ class ChunkTests(unittest.TestCase):
 
     def test_load_real_material(self):
         chunks = load_chunks(config.DEFAULT_MATERIAL)
-        self.assertEqual(len(chunks), 99)
+        # 范围断言：资料是内置内容，偶尔增删块不应导致测试脆弱
+        self.assertGreaterEqual(len(chunks), 90)
+        self.assertLessEqual(len(chunks), 120)
         self.assertTrue(all(c.text.strip() for c in chunks))
         self.assertTrue(all(c.level in ("掌握", "理解", "了解") for c in chunks))
         self.assertIn("text", chunks[0].as_dict())

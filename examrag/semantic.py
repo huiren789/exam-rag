@@ -11,25 +11,17 @@
 """
 
 import math
-import re
 from collections import Counter
 from typing import Dict, List, Sequence, Tuple, Union
 
-from .config import FILLERS, LEVEL_WEIGHTS
-from .models import Chunk, as_chunks
+from .config import LEVEL_WEIGHTS
+from .models import Chunk, as_chunks, bigrams, strip_fillers
 from .retrieval import is_nav
 
 
-def _bigrams(text: str) -> Counter:
-    """字符 bigram 计数，忽略空白。与 retrieval.bigrams 同一口径。"""
-    text = re.sub(r"\s", "", text)
-    return Counter(text[i:i + 2] for i in range(len(text) - 1))
-
-
 def _tokens(text: str) -> Counter:
-    for word in FILLERS:
-        text = text.replace(word, "")
-    return _bigrams(text.strip() or text)
+    """问题分词：去客套词后取字符 bigram 计数（口径与 retrieval 一致）。"""
+    return bigrams(strip_fillers(text, text))
 
 
 def _idf(chunks: Sequence[Chunk]) -> Dict[str, float]:
@@ -37,7 +29,7 @@ def _idf(chunks: Sequence[Chunk]) -> Dict[str, float]:
     n = len(chunks)
     doc_freq: Counter = Counter()
     for chunk in chunks:
-        for token in _bigrams(chunk.text):
+        for token in bigrams(chunk.text):
             doc_freq[token] += 1
     return {
         token: math.log((n + 1) / (freq + 1)) + 1.0

@@ -62,6 +62,8 @@ def run(
     for case in cases:
         question = case["question"]
         expected = set(case["expected"])
+        # 注意：检索器零分时会退回兜底块，这些块也计入 retrieved 与排名。
+        # 这是刻意口径——真实使用时用户看到的正是兜底结果，指标应如实反映。
         hits = [c.tag for c in do_retrieve(question, blocks, top_k=top_k)]
         rank = next((i + 1 for i, tag in enumerate(hits) if tag in expected), 0)
         details.append({

@@ -8,7 +8,7 @@ api / cli 里各用正则解析一遍（共 6 处），既重复又容易不一�
 import re
 from collections import Counter
 from dataclasses import dataclass
-from typing import List, Sequence, Union
+from typing import List, Optional, Sequence, Union
 
 from .config import FILLERS
 
@@ -72,9 +72,24 @@ def tags_of(chunks: Sequence[Union[str, Chunk]]) -> str:
     return "、".join(tag_of(c) for c in as_chunks(chunks))
 
 
-def _bigrams(text: str) -> Counter:
+def bigrams(text: str) -> Counter:
+    """字符 bigram 计数，忽略空白。全项目唯一实现：
+    词面检索 / TF-IDF 语义检索 / 证据句重合度共用同一口径。
+    """
     text = re.sub(r"\s", "", text)
     return Counter(text[i:i + 2] for i in range(len(text) - 1))
+
+
+def strip_fillers(text: str, fallback: Optional[str] = None) -> str:
+    """去掉问题里的客套词，留下检索关键词；去完为空白时退回原文避免检索全空。
+
+    fallback 保持三处历史调用点的原语义：retrieval.clean 退回原始问题、
+    semantic._tokens 与 evidence_sentences 退回各自的上文对象。
+    """
+    q = text
+    for word in FILLERS:
+        q = q.replace(word, "")
+    return q.strip() or (fallback if fallback is not None else text)
 
 
 def evidence_sentences(text: str, question: str, top_n: int = 1) -> List[dict]:
@@ -88,14 +103,11 @@ def evidence_sentences(text: str, question: str, top_n: int = 1) -> List[dict]:
     if not parts:
         parts = [body or text.strip()]
 
-    query = question
-    for word in FILLERS:
-        query = query.replace(word, "")
-    query_bigrams = _bigrams(query.strip() or question)
+    query_bigrams = bigrams(strip_fillers(question, question).strip() or question)
 
     scored = []
     for part in parts:
-        overlap = query_bigrams & _bigrams(part)
+        overlap = query_bigrams & bigrams(part)
         scored.append({"text": part, "score": sum(overlap.values())})
     scored.sort(key=lambda item: item["score"], reverse=True)
     return scored[:top_n]

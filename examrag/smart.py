@@ -11,7 +11,7 @@
 import re
 from typing import Callable, List, Optional, Sequence, Tuple, Union
 
-from .config import FOCUS_KEYS, LEXICAL_HIT_SCORE
+from .config import COURSE_SCOPE_KEYS, FOCUS_KEYS, LEXICAL_HIT_SCORE
 from .llm import ExamRAGError, ask as default_ask
 from .models import Chunk, as_chunks, tag_of
 from .retrieval import retrieve as default_retrieve
@@ -32,7 +32,7 @@ def focus_retrieve(
     由 smart_context 回退到普通检索。
     """
     ask = ask_fn or default_ask
-    if any(key in question for key in ("整门课", "整本书", "全课程", "所有章", "课程的重难点")):
+    if any(key in question for key in COURSE_SCOPE_KEYS):
         top_k = 8
 
     blocks = as_chunks(chunks)
