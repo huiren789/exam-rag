@@ -4,32 +4,53 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ExamRAG — 有据可依的课程复习搭档</title>
+<script>
+/* 首帧前先定主题，避免深色用户看到白屏闪烁；优先手动选择，否则跟随系统。 */
+(function () {
+  try {
+    var s = localStorage.getItem('examrag-theme');
+    var d = s ? s === 'dark' : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.setAttribute('data-theme', d ? 'dark' : 'light');
+  } catch (e) { /* 隐私模式等受限环境：保持浅色默认 */ }
+})();
+</script>
 <style>
   :root {
-    --primary: #1F4E79;
-    --deep: #0F2A52;
-    --accent: #2E75B6;
-    --bright: #3B82F6;
-    --bg: #F6F8FC;
-    --card: #FFFFFF;
-    --text: #1F2937;
-    --muted: #64748B;
-    --line: #DCE4EC;
-    --tag: #EAF1F8;
-    --warn: #8A5A00;
-    --warnbg: #FFF6E5;
-    --green: #2E9E5B;
+    --head1: #0F2A52; --head2: #1F4E79; --head3: #2E75B6;
+    --primary: #1F4E79; --accent: #2E75B6; --bright: #3B82F6;
+    --bg: #F6F8FC; --bg-top: #EAF1FA; --card: #FFFFFF;
+    --text: #1F2937; --body2: #475569; --muted: #64748B;
+    --line: #DCE4EC; --tag: #EAF1F8; --tagline: rgba(31,78,121,.12);
+    --warn: #8A5A00; --warnbg: #FFF6E5; --warnline: #F0D9A8;
+    --green: #2E9E5B; --blue2: #378ADD; --gray-lv: #94A3B8;
+    --soft: #FAFCFE; --chunkbg: #FFFFFF; --evbg: #F4FBF7; --evhover: #E3F4EA;
+    --tabsbg: #EDF2FA; --tabactive: #FFFFFF; --statusbg: #F0F5FC;
+    --inputbg: #FFFFFF; --flash: rgba(59,130,246,.20);
+    --cardshadow: rgba(31,78,121,.12);
+  }
+  html[data-theme="dark"] {
+    --head1: #060D1F; --head2: #0D1E3C; --head3: #17335E;
+    --primary: #93C5FD; --accent: #60A5FA; --bright: #3B82F6;
+    --bg: #0B1220; --bg-top: #0A1830; --card: #101A2C;
+    --text: #E2E8F0; --body2: #A8B6C9; --muted: #94A3B8;
+    --line: rgba(255,255,255,.10); --tag: rgba(59,130,246,.12); --tagline: rgba(96,165,250,.25);
+    --warn: #FBBF24; --warnbg: #2A1F05; --warnline: #4A3B10;
+    --green: #4ADE80; --blue2: #60A5FA; --gray-lv: #94A3B8;
+    --soft: #0D1626; --chunkbg: #0D1626; --evbg: #0C2418; --evhover: #10301F;
+    --tabsbg: #0D1626; --tabactive: #17233A; --statusbg: #0D1626;
+    --inputbg: #0D1626; --flash: rgba(59,130,246,.32);
+    --cardshadow: rgba(0,0,0,.5);
   }
   * { box-sizing: border-box; }
   body {
     margin: 0; color: var(--text);
-    background: linear-gradient(180deg, #EAF1FA 0%, var(--bg) 340px);
+    background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg) 340px);
     font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
     line-height: 1.6;
   }
   header {
     position: relative; overflow: hidden;
-    background: linear-gradient(135deg, var(--deep) 0%, var(--primary) 55%, var(--accent) 100%);
+    background: linear-gradient(135deg, var(--head1) 0%, var(--head2) 55%, var(--head3) 100%);
     color: #fff; padding: 34px 20px 42px; text-align: center;
   }
   header::before, header::after {
@@ -47,13 +68,22 @@
     text-shadow: 0 2px 12px rgba(15,42,82,.4);
   }
   header p { margin: 10px auto 0; opacity: .88; font-size: .92rem; max-width: 560px; }
+  .theme-btn {
+    position: absolute; top: 14px; right: 14px; width: 38px; height: 38px;
+    border-radius: 50%; background: rgba(255,255,255,.12);
+    border: 1px solid rgba(255,255,255,.28); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; transition: background .15s ease; z-index: 2;
+  }
+  .theme-btn:hover { background: rgba(255,255,255,.24); }
+  .theme-btn svg { width: 18px; height: 18px; }
   .wrap { max-width: 780px; margin: -18px auto 0; padding: 0 16px 8px; position: relative; z-index: 1; }
   .card {
     background: var(--card); border: 1px solid var(--line); border-radius: 16px;
-    padding: 26px; box-shadow: 0 12px 40px rgba(31,78,121,.12);
+    padding: 26px; box-shadow: 0 12px 40px var(--cardshadow);
   }
   .tabs {
-    display: flex; gap: 4px; background: #EDF2FA; border-radius: 12px;
+    display: flex; gap: 4px; background: var(--tabsbg); border-radius: 12px;
     padding: 4px; margin-bottom: 20px; flex-wrap: wrap;
   }
   .tab {
@@ -62,24 +92,28 @@
     font-size: .95rem; font-weight: 600; transition: all .18s ease;
   }
   .tab.active {
-    background: #fff; color: var(--primary);
-    box-shadow: 0 2px 10px rgba(31,78,121,.18);
+    background: var(--tabactive); color: var(--primary);
+    box-shadow: 0 2px 10px var(--cardshadow);
   }
   .tab:focus-visible { outline: 2px solid var(--bright); outline-offset: 2px; }
   label { display: block; font-size: .9rem; color: var(--muted); margin-bottom: 6px; }
   input[type=text] {
     width: 100%; padding: 13px 14px; border: 1.5px solid var(--line);
     border-radius: 10px; font-size: 1rem; margin-bottom: 14px;
+    background: var(--inputbg); color: var(--text);
     transition: border-color .15s ease, box-shadow .15s ease;
   }
   input[type=text]:focus {
     outline: none; border-color: var(--bright);
     box-shadow: 0 0 0 3px rgba(59,130,246,.15);
   }
-  input[type=number] { width: 90px; padding: 8px; border: 1.5px solid var(--line); border-radius: 8px; }
+  input[type=number] {
+    width: 90px; padding: 8px; border: 1.5px solid var(--line);
+    border-radius: 8px; background: var(--inputbg); color: var(--text);
+  }
   .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
   button.run {
-    background: linear-gradient(135deg, var(--bright), var(--primary));
+    background: linear-gradient(135deg, #3B82F6, #1F4E79);
     color: #fff; border: none; border-radius: 10px;
     padding: 12px 26px; font-size: 1rem; cursor: pointer; font-weight: 600;
     box-shadow: 0 4px 14px rgba(37,99,235,.3);
@@ -92,7 +126,7 @@
   .status {
     margin-top: 18px; display: inline-flex; align-items: center; flex-wrap: wrap;
     font-size: .85rem; color: var(--muted);
-    background: #F0F5FC; border-radius: 999px; padding: 8px 16px;
+    background: var(--statusbg); border-radius: 999px; padding: 8px 16px;
   }
   .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
   .dot.on { background: var(--green); }
@@ -108,11 +142,16 @@
       from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
     }
+    .flash { animation: flashBg 1.2s ease; }
+    @keyframes flashBg {
+      0% { background-color: var(--flash); }
+      100% { background-color: transparent; }
+    }
   }
   .result { margin-top: 18px; display: none; }
   .result.show { display: block; }
   .block {
-    background: #FAFCFE; border: 1px solid var(--line); border-radius: 12px;
+    background: var(--soft); border: 1px solid var(--line); border-radius: 12px;
     padding: 16px; margin-top: 12px;
   }
   .block h3 {
@@ -124,30 +163,34 @@
   .tag {
     display: inline-block; background: var(--tag); color: var(--primary);
     border-radius: 999px; padding: 3px 14px; font-size: .8rem; margin: 0 6px 6px 0;
-    border: 1px solid rgba(31,78,121,.12);
+    border: 1px solid var(--tagline);
   }
   .note { color: var(--accent); font-size: .85rem; margin-top: 8px; }
   .warn {
-    background: var(--warnbg); color: var(--warn); border: 1px solid #F0D9A8;
+    background: var(--warnbg); color: var(--warn); border: 1px solid var(--warnline);
     border-radius: 10px; padding: 12px 14px; margin-top: 12px; font-size: .9rem;
   }
   .chunk {
-    border-left: 3px solid var(--accent); background: #FFFFFF;
+    border-left: 3px solid var(--accent); background: var(--chunkbg);
     border-radius: 0 8px 8px 0; padding: 8px 0 8px 12px; margin-top: 10px;
-    font-size: .88rem; color: #475569;
+    font-size: .88rem; color: var(--body2); cursor: pointer;
+    transition: background .15s ease;
   }
+  .chunk:hover { background: var(--evhover); }
   .chunk .lv, .evidence .lv { font-size: .78rem; font-weight: 700; }
   .chunk.lv-m1, .evidence.lv-m1 { border-left-color: var(--green); }
   .chunk.lv-m1 .lv, .evidence.lv-m1 .lv { color: var(--green); }
-  .chunk.lv-m2, .evidence.lv-m2 { border-left-color: #378ADD; }
-  .chunk.lv-m2 .lv, .evidence.lv-m2 .lv { color: #378ADD; }
-  .chunk.lv-m3, .evidence.lv-m3 { border-left-color: #94A3B8; }
-  .chunk.lv-m3 .lv, .evidence.lv-m3 .lv { color: #94A3B8; }
+  .chunk.lv-m2, .evidence.lv-m2 { border-left-color: var(--blue2); }
+  .chunk.lv-m2 .lv, .evidence.lv-m2 .lv { color: var(--blue2); }
+  .chunk.lv-m3, .evidence.lv-m3 { border-left-color: var(--gray-lv); }
+  .chunk.lv-m3 .lv, .evidence.lv-m3 .lv { color: var(--gray-lv); }
   .evidence {
-    border-left: 3px solid var(--green); background: #F4FBF7;
+    border-left: 3px solid var(--green); background: var(--evbg);
     border-radius: 0 8px 8px 0; padding: 6px 0 6px 12px; margin-top: 8px;
-    font-size: .86rem; color: #475569;
+    font-size: .86rem; color: var(--body2); cursor: pointer;
+    transition: background .15s ease;
   }
+  .evidence:hover { background: var(--evhover); }
   .evidence .score { color: var(--muted); font-size: .76rem; }
   .legend {
     margin-top: 14px; font-size: .78rem; color: var(--muted);
@@ -157,12 +200,38 @@
     display: inline-block; width: 10px; height: 10px; border-radius: 3px;
     margin-right: 4px; vertical-align: -1px;
   }
+  .history { margin-top: 16px; }
+  .hist-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .hist-clear {
+    background: none; border: 1px solid var(--line); color: var(--muted);
+    border-radius: 8px; padding: 2px 10px; font-size: .78rem; cursor: pointer;
+  }
+  .hist-clear:hover { color: var(--text); }
+  .hist-list { display: flex; gap: 8px; flex-wrap: wrap; }
+  .hist-chip {
+    background: var(--tag); color: var(--primary); border: 1px solid var(--tagline);
+    border-radius: 999px; padding: 4px 12px; font-size: .82rem; cursor: pointer;
+    transition: opacity .15s ease; max-width: 260px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+  .hist-chip:hover { opacity: .8; }
+  .hist-chip b { font-weight: 700; margin-right: 4px; color: var(--accent); }
   footer { text-align: center; color: var(--muted); font-size: .82rem; padding: 26px 12px 40px; }
   footer a { color: var(--accent); }
 </style>
 </head>
 <body>
 <header>
+  <button class="theme-btn" id="theme-btn" type="button" aria-label="切换深色模式" title="切换深色 / 浅色模式">
+    <svg id="icon-moon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M20 12.6A8.6 8.6 0 0 1 11.4 4a7.2 7.2 0 1 0 8.6 8.6z" fill="currentColor"/>
+    </svg>
+    <svg id="icon-sun" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="display:none">
+      <circle cx="12" cy="12" r="4" fill="currentColor"/>
+      <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4"
+            stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>
+  </button>
   <div class="head-badge">EXAMRAG</div>
   <h1>有据可依的课程复习搭档</h1>
   <p>每个回答都能翻回原文核对 —— 本地检索挑资料，模型只依据资料作答</p>
@@ -196,6 +265,7 @@
     </div>
 
     <div class="status" id="status" role="status">正在检查服务状态…</div>
+    <div class="history" id="history" style="display:none" aria-label="检索历史"></div>
     <div class="result" id="result" role="tabpanel" aria-live="polite"></div>
   </div>
 </div>
@@ -212,6 +282,9 @@ const SHARE_CODE = new URLSearchParams(location.search).get('sharecode') || '';
 function apiUrl(path) {
   return SHARE_CODE ? path + '?sharecode=' + encodeURIComponent(SHARE_CODE) : path;
 }
+// 受限环境（隐私模式等）下 localStorage 可能抛异常，所有存取包 try/catch。
+function storeGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+function storeSet(key, value) { try { localStorage.setItem(key, value); } catch (e) { /* 忽略 */ } }
 
 const LABELS = {
   ask: ['你的问题', '例如：难度的定义是什么'],
@@ -225,6 +298,33 @@ function levelClass(level) {
   return level === '掌握' ? 'm1' : (level === '理解' ? 'm2' : 'm3');
 }
 
+/* ---------- 暗色模式 ---------- */
+const THEME_KEY = 'examrag-theme';
+function systemDark() {
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+function applyTheme() {
+  const saved = storeGet(THEME_KEY);
+  const dark = saved ? saved === 'dark' : systemDark();
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  $('icon-sun').style.display = dark ? '' : 'none';
+  $('icon-moon').style.display = dark ? 'none' : '';
+  $('theme-btn').setAttribute('aria-label', dark ? '切换浅色模式' : '切换深色模式');
+  $('theme-btn').title = dark ? '切换浅色模式' : '切换深色模式';
+}
+$('theme-btn').addEventListener('click', () => {
+  const saved = storeGet(THEME_KEY);
+  const dark = saved ? saved === 'dark' : systemDark();
+  storeSet(THEME_KEY, dark ? 'light' : 'dark');
+  applyTheme();
+});
+if (window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (!storeGet(THEME_KEY)) applyTheme();
+  });
+}
+
+/* ---------- 标签页 ---------- */
 function selectTab(btn) {
   document.querySelectorAll('.tab').forEach(b => {
     b.classList.remove('active');
@@ -257,6 +357,7 @@ document.querySelector('.tabs').addEventListener('keydown', (e) => {
 
 $('query').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('run').click(); });
 
+/* ---------- 服务状态 ---------- */
 async function checkHealth() {
   try {
     const r = await fetch(apiUrl('/health'));
@@ -275,6 +376,7 @@ async function checkHealth() {
   }
 }
 
+/* ---------- 渲染工具 ---------- */
 function tagHtml(tags) {
   if (!tags || !tags.length) return '';
   return '<div class="tags">' + tags.map(t => '<span class="tag">' + escapeHtml(t) + '</span>').join('') + '</div>';
@@ -285,9 +387,10 @@ function escapeHtml(s) {
 
 function evidenceHtml(items) {
   if (!items || !items.length) return '';
-  return '<div style="margin-top:12px;font-size:.85rem;color:var(--muted)">依据句（词面重合度）</div>' +
+  return '<div style="margin-top:12px;font-size:.85rem;color:var(--muted)">依据句（词面重合度，点击定位原文）</div>' +
     items.map(e =>
-      '<div class="evidence lv-' + levelClass(e.level) + '"><span class="lv">' + escapeHtml(e.tag) + ' · ' + escapeHtml(e.level) +
+      '<div class="evidence lv-' + levelClass(e.level) + '" data-tag="' + escapeHtml(e.tag) +
+      '" title="点击定位对应资料块"><span class="lv">' + escapeHtml(e.tag) + ' · ' + escapeHtml(e.level) +
       '</span><br>' + escapeHtml(e.sentence) +
       ' <span class="score">重合 ' + escapeHtml(e.score) + '</span></div>'
     ).join('');
@@ -295,10 +398,94 @@ function evidenceHtml(items) {
 
 const LEGEND = '<div class="legend">' +
   '<span><i style="background:var(--green)"></i>掌握</span>' +
-  '<span><i style="background:#378ADD"></i>理解</span>' +
-  '<span><i style="background:#94A3B8"></i>了解</span>' +
+  '<span><i style="background:var(--blue2)"></i>理解</span>' +
+  '<span><i style="background:var(--gray-lv)"></i>了解</span>' +
   '</div>';
 
+/* ---------- 溯源联动：点击依据句 / 资料块互相定位 ---------- */
+function findByTag(selector, tag) {
+  const nodes = document.querySelectorAll('#result ' + selector);
+  for (const n of nodes) {
+    if (n.dataset.tag === tag) return n;
+  }
+  return null;
+}
+function flashEl(el) {
+  if (!el) return;
+  el.classList.remove('flash');
+  void el.offsetWidth; // 重启动画
+  el.classList.add('flash');
+  setTimeout(() => el.classList.remove('flash'), 1300);
+}
+$('result').addEventListener('click', (e) => {
+  const ev = e.target.closest('.evidence');
+  const ch = e.target.closest('.chunk');
+  if (ev) {
+    const target = findByTag('.chunk', ev.dataset.tag);
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      flashEl(target);
+    }
+  } else if (ch) {
+    const target = findByTag('.evidence', ch.dataset.tag);
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      flashEl(target);
+    }
+  }
+});
+
+/* ---------- 检索历史 ---------- */
+const HIST_KEY = 'examrag-history';
+function loadHistory() {
+  try {
+    const list = JSON.parse(storeGet(HIST_KEY) || '[]');
+    return Array.isArray(list) ? list : [];
+  } catch (e) { return []; }
+}
+function saveHistory(list) {
+  storeSet(HIST_KEY, JSON.stringify(list.slice(0, 10)));
+}
+function addHistory(m, q) {
+  const list = loadHistory().filter(it => !(it.mode === m && it.q === q));
+  list.unshift({ mode: m, q: q, ts: Date.now() });
+  saveHistory(list);
+  renderHistory();
+}
+function renderHistory() {
+  const list = loadHistory();
+  const box = $('history');
+  if (!list.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  const MODE_TAG = { ask: '问', exam: '题', retrieve: '检' };
+  box.style.display = 'block';
+  box.innerHTML =
+    '<div class="hist-head"><span class="hint">最近查询（点击重查）</span>' +
+    '<button class="hist-clear" id="hist-clear" type="button">清空</button></div>' +
+    '<div class="hist-list">' +
+    list.map((it, i) => {
+      const label = (it.q && it.q.length > 18) ? it.q.slice(0, 18) + '…' : it.q;
+      return '<button class="hist-chip" data-i="' + i + '" type="button" title="' + escapeHtml(it.q) + '">' +
+        '<b>' + (MODE_TAG[it.mode] || '') + '</b>' + escapeHtml(label) + '</button>';
+    }).join('') +
+    '</div>';
+}
+$('history').addEventListener('click', (e) => {
+  if (e.target.closest('#hist-clear')) {
+    saveHistory([]);
+    renderHistory();
+    return;
+  }
+  const chip = e.target.closest('.hist-chip');
+  if (!chip) return;
+  const it = loadHistory()[Number(chip.dataset.i)];
+  if (!it) return;
+  const tab = document.querySelector('.tab[data-mode="' + it.mode + '"]');
+  if (tab) selectTab(tab);
+  $('query').value = it.q;
+  $('run').click();
+});
+
+/* ---------- 错误提示 ---------- */
 function detailText(detail) {
   // FastAPI 校验失败（422）时 detail 是数组；字符串时原样用。
   if (Array.isArray(detail)) {
@@ -316,9 +503,11 @@ function showWarn(msg) {
   $('result').className = 'result show';
 }
 
+/* ---------- 主流程 ---------- */
 $('run').addEventListener('click', async () => {
   const q = $('query').value.trim();
   if (!q) { showWarn('请先输入' + LABELS[mode][0]); $('query').focus(); return; }
+  addHistory(mode, q);
   const topK = Math.max(1, Math.min(8, parseInt($('topk').value, 10) || 3));
   $('run').disabled = true;
   $('run').textContent = '处理中…';
@@ -349,7 +538,8 @@ $('run').addEventListener('click', async () => {
     if (mode === 'retrieve') {
       html += '<div class="block"><h3>检索到 ' + escapeHtml(data.count) + ' 块资料</h3>' + tagHtml(data.sources);
       (data.chunks || []).forEach(c => {
-        html += '<div class="chunk lv-' + levelClass(c.level) + '"><span class="lv">' + escapeHtml(c.level) + ' · ' + escapeHtml(c.tag) +
+        html += '<div class="chunk lv-' + levelClass(c.level) + '" data-tag="' + escapeHtml(c.tag) +
+                '" title="点击定位依据句"><span class="lv">' + escapeHtml(c.level) + ' · ' + escapeHtml(c.tag) +
                 '</span><br>' + escapeHtml(c.text) + '</div>';
       });
       html += evidenceHtml(data.evidence);
@@ -363,7 +553,8 @@ $('run').addEventListener('click', async () => {
         html += '<div class="note">检索块掌握等级：' + escapeHtml(data.levels) + '</div>';
       }
       (data.chunks || []).forEach(c => {
-        html += '<div class="chunk lv-' + levelClass(c.level) + '"><span class="lv">' + escapeHtml(c.level) + ' · ' + escapeHtml(c.tag) +
+        html += '<div class="chunk lv-' + levelClass(c.level) + '" data-tag="' + escapeHtml(c.tag) +
+                '" title="点击定位依据句"><span class="lv">' + escapeHtml(c.level) + ' · ' + escapeHtml(c.tag) +
                 '</span><br>' + escapeHtml(c.text) + '</div>';
       });
       html += evidenceHtml(data.evidence);
@@ -379,6 +570,8 @@ $('run').addEventListener('click', async () => {
   }
 });
 
+applyTheme();
+renderHistory();
 checkHealth();
 </script>
 </body>

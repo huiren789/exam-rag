@@ -160,6 +160,11 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertIn("ExamRAG", r.text)
         self.assertIn("只看检索", r.text)
+        # 新增交互结构：主题切换按钮 / 检索历史容器 / 溯源 data-tag 渲染逻辑
+        self.assertIn("theme-btn", r.text)
+        self.assertIn('id="history"', r.text)
+        self.assertIn("data-tag", r.text)
+        self.assertIn("examrag-theme", r.text)
         r = client.get("/static/index.html")
         self.assertEqual(r.status_code, 200)
 
