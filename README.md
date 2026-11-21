@@ -25,7 +25,7 @@ ExamRAG 把「找资料」这一步放在本地完成。检索不联网、不花
 - 并列概念拆分：问「信度和难度」时，拆成两段分别检索再合并结果。
 - 离线演示：`--dry-run` 不调用模型，只打印检索结果和提示词，不需要密钥。
 - Web 界面：一个单页演示界面，提问 / 出题 / 只看检索三个标签，展示带出处的回答；未配密钥时「只看检索」仍可用。
-- 可选 HTTP API：FastAPI 提供 `/ask`、`/exam`、`/retrieve`、`/health` 四个接口，带自动生成的 Swagger 文档。
+- 可选 HTTP API：FastAPI 提供 `/ask`、`/exam`、`/retrieve`、`/prompt`、`/health` 五个接口，带自动生成的 Swagger 文档。
 - 零第三方依赖：核心与语义检索都用 Python 标准库；Web/API 与向量检索按需安装。85 个离线测试，CI 覆盖 Python 3.8 / 3.11 / 3.13，并含 ruff 静态检查。
 
 ## 安装方法
@@ -114,14 +114,15 @@ python -m examrag.api        # 只有接口：http://127.0.0.1:8000/docs
 
 也可以直接 `uvicorn examrag.api:app --reload`（根路径同样带演示页）。Web 页的「向量检索」勾选框会在服务端未安装依赖时自动禁用。`/docs` 是 FastAPI 自动生成的交互文档，可直接在页面里填参数调试。
 
-**在线演示**：https://examrag-demo.app.workbuddy.host/?sharecode=YTW7YFIS3R （线上未配置模型密钥，提问/出题会给出提示，「只看检索」可正常使用）。
+**在线演示**：https://examrag-demo.app.workbuddy.host/?sharecode=YTW7YFIS3R （线上未配置模型密钥，提问/出题由 WorkBuddy 云服务的免密钥模型通道驱动，检索与溯源仍由本地后端保证）。
 
-四个接口：
+五个接口：
 
 | 方法 | 路径 | 作用 | 需要密钥 |
 | --- | --- | --- | --- |
 | GET | `/health` | 健康检查（版本、资料块数、密钥是否已配置，不回传密钥本身） | 否 |
 | POST | `/retrieve` | 纯本地检索，返回命中的资料块、标签与掌握等级 | 否 |
+| POST | `/prompt` | 返回组装好的提示词与检索结果（不调用模型），供前端直连云模型 | 否 |
 | POST | `/ask` | 提问，检索后调用模型，回答注明依据 | 是 |
 | POST | `/exam` | 出题，按掌握等级加权检索后让模型出题 | 是 |
 

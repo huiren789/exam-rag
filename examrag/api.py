@@ -15,7 +15,7 @@ import os
 
 from . import config, service
 from .llm import ExamRAGError, ask as default_ask
-from .models import Chunk
+from .models import Chunk, tags_of
 from .vector import EmbedFn
 
 
@@ -61,6 +61,14 @@ def create_app(
         question: str
         top_k: int = 3
         weighted: bool = False
+        material: Optional[str] = None
+        semantic: bool = False
+        vector: bool = False
+
+    class PromptBody(BaseModel):
+        question: Optional[str] = None
+        topic: Optional[str] = None
+        top_k: int = 3
         material: Optional[str] = None
         semantic: bool = False
         vector: bool = False
@@ -121,6 +129,63 @@ def create_app(
             "api_key_configured": bool(config.get_api_key()),
             "vector_available": importlib.util.find_spec("sentence_transformers") is not None,
         }
+
+    @app.post("/prompt")
+    def prompt_endpoint(body: PromptBody) -> Dict[str, Any]:
+        """免密钥接口：返回组装好的提示词与检索结果，不调用模型。
+
+        供前端（如演示页经云服务 LLM）拿提示词后自行调用模型：
+        提示词组装复用 service 层，保证与 /ask /exam 单一来源不漂移。
+        system 字段对应模型调用的 messages[0]，与 llm.ask 用法一致。
+        """
+        _check_top_k(body.top_k)
+        try:
+            if body.topic is not None:
+                topic = body.topic.strip()
+                if not topic:
+                    raise ExamRAGError("出题模式需要提供 topic。")
+                related, levels, prompt = service.prepare_exam(
+                    topic, _chunks(body.material),
+                    top_k=body.top_k,
+                    semantic_mode=body.semantic,
+                    vector_mode=body.vector, embed_fn=embed_fn,
+                )
+                return {
+                    "mode": "exam",
+                    "prompt": prompt,
+                    "system": config.SYSTEM_PROMPT,
+                    "chunks": [c.as_dict() for c in related],
+                    "sources": [tags_of(related)] if related else [],
+                    "evidence": service.evidence_for_question(topic, related),
+                    "levels": levels,
+                    "note": None,
+                }
+            question = (body.question or "").strip()
+            if not question:
+                raise ExamRAGError("请提供 question（提问）或 topic（出题）。")
+
+            # 本接口不调用模型：给一个恒抛 ExamRAGError 的桩，让 smart_context
+            # / focus_retrieve 走既有的「模型不可用→回退普通检索」分支。
+            def _no_model(prompt: str) -> str:
+                raise ExamRAGError("提示词接口不调用模型")
+
+            related, note, prompt = service.prepare_question(
+                question, _chunks(body.material),
+                top_k=body.top_k, ask_fn=_no_model,
+                semantic_mode=body.semantic,
+                vector_mode=body.vector, embed_fn=embed_fn,
+            )
+            return {
+                "mode": "ask",
+                "prompt": prompt,
+                "system": config.SYSTEM_PROMPT,
+                "chunks": [c.as_dict() for c in related],
+                "sources": [tags_of(related)] if related else [],
+                "evidence": service.evidence_for_question(question, related),
+                "note": note,
+            }
+        except (ExamRAGError, FileNotFoundError) as exc:
+            _endpoint_error(exc)
 
     @app.post("/retrieve")
     def retrieve_endpoint(body: RetrieveBody) -> Dict[str, Any]:

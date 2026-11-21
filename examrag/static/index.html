@@ -219,6 +219,8 @@
   footer { text-align: center; color: var(--muted); font-size: .82rem; padding: 26px 12px 40px; }
   footer a { color: var(--accent); }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@tencent-ai/workbuddy-cloud-sdk@dev/lib/index.global.js"></script>
+<script src="/static/cloud-config.js"></script>
 </head>
 <body>
 <header>
@@ -293,6 +295,120 @@ const LABELS = {
 };
 const NO_KEY_TIP = '当前服务未配置模型密钥，回答类功能不可用。「只看检索」仍可离线使用，能看到程序挑出了哪些资料块。';
 
+/* ---------- WorkBuddy 云服务：免密钥模型调用 ----------
+   流程：POST /prompt（后端检索+组装提示词，零密钥）→ 浏览器经云 SDK 流式调用模型。
+   本机配置了 SILICONFLOW_API_KEY 时仍走原 /ask /exam，云端流程只在无密钥时启用。 */
+let SERVER_KEY = false;
+let CLOUD_READY = false;
+let cloud = null;
+let cloudModels = [];
+let lastCloud = null;
+
+async function initCloud() {
+  if (!window.WorkBuddyCloud || !window.EXAMRAG_CLOUD_CONFIG) return false;
+  try {
+    cloud = WorkBuddyCloud.createWorkBuddyCloud({
+      endpoint: window.EXAMRAG_CLOUD_CONFIG.endpoint,
+      oauthRelayBaseUrl: window.EXAMRAG_CLOUD_CONFIG.oauthRelayBaseUrl,
+      publishableKey: window.EXAMRAG_CLOUD_CONFIG.publishableKey
+    });
+    const models = await cloud.llm.models.list();
+    cloudModels = (models || []).filter(m => m.disabled !== true);
+    return cloudModels.length > 0;
+  } catch (e) {
+    cloud = null;
+    cloudModels = [];
+    return false;
+  }
+}
+
+function cloudErrorMessage(err) {
+  const code = (err && err.error && err.error.code) ? String(err.error.code) : '';
+  const detail = (err && err.error && err.error.message) ? err.error.message : (err && err.message) || '';
+  if (code.indexOf('auth_') === 0) {
+    return '云服务鉴权未通过（应用域名校验失败）。请重新部署本应用后再试，或在本地配置模型密钥使用。';
+  }
+  if (code.indexOf('quota_') === 0) {
+    return '云服务额度不足或触发限流，请稍后再试。';
+  }
+  if (code.indexOf('gateway_') === 0 || code.indexOf('model_') === 0) {
+    return '模型服务暂时不可用，请点击重试。';
+  }
+  if (code.indexOf('request_') === 0) {
+    return '请求参数不被模型接受：' + detail;
+  }
+  return '云模型调用失败：' + (detail || '未知错误');
+}
+
+function renderCloudResult(pd, answer, extraHtml) {
+  let html = '<div class="block"><h3>回答</h3><div class="answer">' + escapeHtml(answer) + '</div>';
+  if (pd.note) html += '<div class="note">' + escapeHtml(pd.note) + '</div>';
+  html += '<div style="margin-top:10px;font-size:.85rem;color:var(--muted)">依据的资料块</div>' +
+          tagHtml(pd.sources);
+  if (pd.mode === 'exam' && pd.levels) {
+    html += '<div class="note">检索块掌握等级：' + escapeHtml(pd.levels) + '</div>';
+  }
+  (pd.chunks || []).forEach(c => {
+    html += '<div class="chunk lv-' + levelClass(c.level) + '" data-tag="' + escapeHtml(c.tag) +
+            '" title="点击定位依据句"><span class="lv">' + escapeHtml(c.level) + ' · ' + escapeHtml(c.tag) +
+            '</span><br>' + escapeHtml(c.text) + '</div>';
+  });
+  html += evidenceHtml(pd.evidence);
+  html += LEGEND + '</div>';
+  html += extraHtml || '';
+  $('result').innerHTML = html;
+  $('result').className = 'result show';
+}
+
+async function cloudAsk(q, topK, semantic, vector) {
+  const body = { top_k: topK, semantic: semantic, vector: vector };
+  if (mode === 'exam') { body.topic = q; } else { body.question = q; }
+  const pr = await fetch(apiUrl('/prompt'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const pd = await pr.json();
+  if (!pr.ok) {
+    showWarn(detailText(pd.detail));
+    return;
+  }
+  $('result').innerHTML =
+    '<div class="block"><h3>回答</h3><div class="answer" id="cloud-answer"></div>' +
+    '<div class="note">云端模型生成中…</div></div>';
+  $('result').className = 'result show';
+  let answer = '';
+  try {
+    const messages = [
+      { role: 'system', content: pd.system || 'You are a helpful assistant. Be concise and helpful.' },
+      { role: 'user', content: pd.prompt }
+    ];
+    for await (const chunk of cloud.llm.chat.completions.create({
+      model: cloudModels[0].id,
+      messages: messages,
+      stream: true
+    })) {
+      const delta = chunk.choices && chunk.choices[0] && chunk.choices[0].delta;
+      if (delta && delta.content) {
+        answer += delta.content;
+        $('cloud-answer').textContent = answer;
+      }
+    }
+    renderCloudResult(pd, answer, '');
+  } catch (err) {
+    const retry = '<div class="warn">' + escapeHtml(cloudErrorMessage(err)) +
+      ' <button class="hist-clear" id="cloud-retry" type="button">重试</button></div>';
+    renderCloudResult(pd, answer || '（未收到回答）', retry);
+    const btn = $('cloud-retry');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        btn.disabled = true;
+        cloudAsk(q, topK, semantic, vector);
+      });
+    }
+  }
+}
+
 function levelClass(level) {
   // 掌握=绿 m1 / 理解=蓝 m2 / 了解=灰 m3，与底部图例一致。
   return level === '掌握' ? 'm1' : (level === '理解' ? 'm2' : 'm3');
@@ -364,12 +480,16 @@ async function checkHealth() {
     const d = await r.json();
     const on = d.api_key_configured;
     const hasVector = !!d.vector_available;
+    SERVER_KEY = !!on;
     // 向量检索依赖服务端可选包：没装就整块隐藏，不留一个永远点不了的灰框。
     $('vector-wrap').style.display = hasVector ? 'flex' : 'none';
+    const cloudOk = await initCloud();
+    CLOUD_READY = cloudOk;
     $('status').innerHTML =
       '<span class="dot ' + (on ? 'on' : 'off') + '"></span>' +
       '服务正常 · 资料 ' + escapeHtml(d.chunks_available) + ' 块 · 模型 ' + escapeHtml(d.model) +
-      ' · 密钥' + (on ? '已配置' : '未配置（可用「只看检索」）') +
+      ' · 密钥' + (on ? '已配置' : '未配置') +
+      ' · 云端模型' + (cloudOk ? '可用' : '不可用') +
       ' · 向量检索' + (hasVector ? '可用' : '未安装');
   } catch (e) {
     $('status').textContent = '无法连接服务：' + e.message;
@@ -509,13 +629,37 @@ $('run').addEventListener('click', async () => {
   if (!q) { showWarn('请先输入' + LABELS[mode][0]); $('query').focus(); return; }
   addHistory(mode, q);
   const topK = Math.max(1, Math.min(8, parseInt($('topk').value, 10) || 3));
+  const semantic = $('semantic').checked;
+  const vector = $('vector').checked;
+
+  // 云端流程：无服务器密钥且云模型可用时，提问/出题走 /prompt + 云 LLM。
+  if ((mode === 'ask' || mode === 'exam') && !SERVER_KEY) {
+    if (!CLOUD_READY) {
+      showWarn('云端模型不可用且未配置模型密钥。「只看检索」仍可离线使用，能看到程序挑出了哪些资料块。');
+      return;
+    }
+    const now = Date.now();
+    if (lastCloud && lastCloud.mode === mode && lastCloud.q === q && now - lastCloud.ts < 10000) {
+      showWarn('同一问题请等待 10 秒后再试（云服务额度保护）。');
+      return;
+    }
+    lastCloud = { mode: mode, q: q, ts: now };
+    $('run').disabled = true;
+    $('run').textContent = '生成中…';
+    try {
+      await cloudAsk(q, topK, semantic, vector);
+    } finally {
+      $('run').disabled = false;
+      $('run').textContent = '提交';
+    }
+    return;
+  }
+
   $('run').disabled = true;
   $('run').textContent = '处理中…';
   $('result').className = 'result';
   try {
     const path = apiUrl('/' + mode);
-    const semantic = $('semantic').checked;
-    const vector = $('vector').checked;
     const options = { top_k: topK, semantic: semantic, vector: vector };
     const body = mode === 'exam'
       ? Object.assign({ topic: q }, options)

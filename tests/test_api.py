@@ -136,6 +136,34 @@ class ApiTests(unittest.TestCase):
             self.assertNotIn("/", data["material"])
             self.assertNotIn(":", data["material"])
 
+    def test_prompt_ask_mode(self):
+        """免密钥 /prompt：返回组装好的提示词，不调用模型。"""
+        r = self.client.post("/prompt", json={"question": "难度的定义", "top_k": 2})
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertEqual(data["mode"], "ask")
+        self.assertIn("只根据以下资料回答", data["prompt"])
+        self.assertIn("难度的定义", data["prompt"])
+        self.assertTrue(data["system"])
+        self.assertTrue(data["sources"])
+        self.assertTrue(data["chunks"])
+        self.assertIn("sentence", data["evidence"][0])
+
+    def test_prompt_exam_mode(self):
+        r = self.client.post("/prompt", json={"topic": "信度", "top_k": 2})
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertEqual(data["mode"], "exam")
+        self.assertIn("出 3 道", data["prompt"])
+        self.assertTrue(data["levels"])
+
+    def test_prompt_requires_input_and_is_keyless(self):
+        # 无密钥环境（未配置 SILICONFLOW_API_KEY）即可用
+        with mock.patch.dict(os.environ, {"SILICONFLOW_API_KEY": ""}, clear=False):
+            r = self.client.post("/prompt", json={})
+            self.assertEqual(r.status_code, 400)
+            self.assertIn("question", r.json()["detail"])
+
     def test_model_error_becomes_400(self):
         def broken(prompt):
             from examrag.llm import ExamRAGError
