@@ -1,4 +1,4 @@
-ExamRAG HTTP API 调用示例（v0.3.0）
+ExamRAG HTTP API 调用示例（v0.4.0）
 
 启动服务：
     pip install -e ".[api]"
@@ -16,7 +16,7 @@ ExamRAG HTTP API 调用示例（v0.3.0）
 响应（真实输出，api_key_configured 取决于本机配置）：
 {
   "status": "ok",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "chunks_available": 99,
   "material": "material.txt",
   "material_error": null,

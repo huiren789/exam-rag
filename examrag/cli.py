@@ -5,6 +5,7 @@ from typing import Callable, List, Sequence
 
 from . import config, service
 from .llm import ExamRAGError, ask as default_ask
+from .models import Chunk
 from .retrieval import tags_of
 
 AskFn = Callable[[str], str]
@@ -51,7 +52,7 @@ def _dry_run_ask(prompt: str) -> str:
 
 def _run_exam(
     topic: str,
-    chunks: Sequence[str],
+    chunks: Sequence[Chunk],
     top_k: int,
     ask_fn: AskFn,
     dry_run: bool,
@@ -69,7 +70,7 @@ def _run_exam(
 
 def _run_question(
     question: str,
-    chunks: Sequence[str],
+    chunks: Sequence[Chunk],
     top_k: int,
     ask_fn: AskFn,
     dry_run: bool,
@@ -87,7 +88,7 @@ def _run_question(
         print("\nAI：", answer, "\n")
 
 
-def _repl(chunks: List[str], top_k: int, ask_fn: AskFn, dry_run: bool, semantic_mode: bool = False) -> None:
+def _repl(chunks: List[Chunk], top_k: int, ask_fn: AskFn, dry_run: bool, semantic_mode: bool = False) -> None:
     """交互式命令行循环，保留原版使用习惯。"""
     print("已加载 %d 块资料。" % len(chunks))
     print(INTRO)

@@ -6,15 +6,16 @@ try:
     from fastapi.testclient import TestClient
     from examrag.api import create_app
     from examrag import service
+    from examrag.models import as_chunks
     HAS_API_DEPS = True
 except ImportError:
     HAS_API_DEPS = False
 
-CHUNKS = [
+CHUNKS = as_chunks([
     "【掌握·难度的定义】难度是试题难易程度的指标，常用通过率 P 表示。",
     "【理解·信度的定义】信度是测验结果的一致性、稳定性程度。",
     "【了解·效度的定义】效度指测验测到所要测特质的程度。",
-]
+])
 
 
 @unittest.skipUnless(HAS_API_DEPS, "未安装 fastapi/httpx，跳过 API 测试")

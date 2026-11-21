@@ -3,14 +3,15 @@
 import unittest
 
 from examrag import config, service
+from examrag.models import as_chunks
 
 
-CHUNKS = [
+CHUNKS = as_chunks([
     "【掌握·难度的定义】难度是试题难易程度的指标，常用通过率 P 表示。",
     "【理解·信度的定义】信度是测验结果的一致性、稳定性程度。",
     "【了解·效度的定义】效度指测验测到所要测特质的程度。",
     "======== 第一章 ========",
-]
+])
 
 
 class PromptTests(unittest.TestCase):
@@ -40,6 +41,7 @@ class PrepareTests(unittest.TestCase):
             "难度的定义", CHUNKS, top_k=2, ask_fn=never_called
         )
         self.assertTrue(related)
+        self.assertLessEqual(len(related), 2)
         self.assertIn("难度", prompt)
         self.assertEqual(calls, [], "检索命中时不应触发模型调用")
 
@@ -50,7 +52,7 @@ class PrepareTests(unittest.TestCase):
         # 关键是出题提示词拿到了带掌握等级的块，而非断言某个固定等级。
         self.assertTrue(levels)
         self.assertTrue(related)
-        self.assertTrue(any("信度" in c for c in related))
+        self.assertTrue(any("信度" in c.text for c in related))
 
     def test_load_material_real_file(self):
         chunks = service.load_material()
@@ -99,6 +101,38 @@ class StructuredTests(unittest.TestCase):
         )
         self.assertTrue(exam_related)
         self.assertTrue(levels)
+
+    def test_semantic_hit_does_not_trigger_rewrite(self):
+        """语义分数与词面分数不同量级：命中时不应误触发查询改写。"""
+        calls = []
+
+        def never_called(prompt):
+            calls.append(prompt)
+            return ""
+
+        related, note, prompt = service.prepare_question(
+            "难度的定义", CHUNKS, top_k=2, ask_fn=never_called, semantic_mode=True
+        )
+        self.assertTrue(related)
+        self.assertLessEqual(len(related), 2)
+        self.assertEqual(calls, [], "语义检索已有命中时不应再调模型改写")
+        self.assertNotIn("自动提取", note or "")
+        self.assertIn("语义检索", note or "")
+
+    def test_semantic_miss_still_triggers_rewrite(self):
+        """没命中时查询改写仍要生效，不能被阈值修复误伤。"""
+        calls = []
+
+        def rewrite(prompt):
+            calls.append(prompt)
+            return "难度" if "提取" in prompt else ""
+
+        related, note, prompt = service.prepare_question(
+            "zzzzzz", CHUNKS, top_k=2, ask_fn=rewrite, semantic_mode=True
+        )
+        self.assertTrue(calls)
+        self.assertIn("自动提取", note or "")
+        self.assertTrue(related)
 
 
 if __name__ == "__main__":

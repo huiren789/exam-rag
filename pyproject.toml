@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "examrag"
-version = "0.3.0"
+version = "0.4.0"
 description = "ExamRAG — 有据可依的课程复习搭档：可溯源的课程 RAG 工具，命令行 + 可选 HTTP API，核心零依赖，已有 11 位同学体验使用"
 readme = "README.md"
 requires-python = ">=3.8"

@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import Dict, Optional
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 
 # 仓库根目录：无论从哪个工作目录启动，都能找到内置资料。
 ROOT = Path(__file__).resolve().parent.parent
@@ -42,6 +42,12 @@ LEVEL_WEIGHTS: Dict[str, int] = {"掌握": 3, "理解": 2, "了解": 1}
 
 # 汇总型问题的触发词。
 FOCUS_KEYS = ("重难点", "重点", "考点", "必考")
+
+# 策略层判断「这次检索是否命中」的最低分。两种检索器分数口径不同：
+# 词面检索是共同 bigram 出现次数（可达几十），语义检索是余弦相似度（0~1），
+# 因此必须分别设阈值，不能共用一个 5，否则语义模式每次都会误触发查询改写。
+LEXICAL_HIT_SCORE = 5.0
+SEMANTIC_HIT_SCORE = 0.08
 
 
 def _load_dotenv(path: Optional[Path] = None) -> Dict[str, str]:

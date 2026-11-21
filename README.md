@@ -23,7 +23,7 @@ ExamRAG 把「找资料」这一步放在本地完成。检索不联网、不花
 - 离线演示：`--dry-run` 不调用模型，只打印检索结果和提示词，不需要密钥。
 - Web 界面：一个单页演示界面，提问 / 出题 / 只看检索三个标签，展示带出处的回答；未配密钥时「只看检索」仍可用。
 - 可选 HTTP API：FastAPI 提供 `/ask`、`/exam`、`/retrieve`、`/health` 四个接口，带自动生成的 Swagger 文档。
-- 零第三方依赖：核心与语义检索都用 Python 标准库；Web/API 按需安装。58 个离线测试，CI 覆盖 Python 3.8 / 3.11 / 3.13。
+- 零第三方依赖：核心与语义检索都用 Python 标准库；Web/API 按需安装。62 个离线测试，CI 覆盖 Python 3.8 / 3.11 / 3.13。
 
 ## 安装方法
 
@@ -79,7 +79,7 @@ python -m examrag -q "信度" --semantic          # 用 TF-IDF 语义检索挑�
 | `-q`, `--question` | 单次提问，回答后退出 |
 | `--exam [主题]` | 出题模式，主题可直接跟在后面 |
 | `--topic` | 查询某主题的知识点或重难点 |
-| `--top-k N` | 检索几块资料，默认 3 |
+| `--top-k N` | 检索几块资料，默认 3；重难点汇总会适当放宽 |
 | `--material PATH` | 指定资料文件 |
 | `--dry-run` | 只显示检索结果和提示词，不联网 |
 | `--semantic` | 用 TF-IDF 语义检索挑块（默认词面匹配），离线零依赖 |
@@ -203,17 +203,18 @@ python -m examrag -q "难度的定义" --dry-run
 ```text
 examrag/
   config.py      环境变量、.env、路径和常量
-  retrieval.py   本地检索
+  models.py      资料块领域模型 Chunk：标签/等级/正文只解析一次
+  retrieval.py   本地词面检索（与语义检索同契约）
   llm.py         模型调用和错误处理
-  smart.py       查询改写、重难点、并列概念拆分
+  smart.py       查询改写、重难点、并列概念拆分；检索器可注入
   semantic.py    可选的 TF-IDF 语义检索（纯标准库）
-  service.py     CLI 与 API 共用的检索、提示词与结果组装
+  service.py     CLI、API、Web 共用的检索、提示词与结果组装
   cli.py         命令行参数和交互循环
   api.py         可选的 FastAPI HTTP 接口
   web.py         Web 演示界面入口
   static/        演示页 HTML
 data/material.txt   内置资料，99 块
-tests/              58 个离线测试（API 测试在缺依赖时自动跳过）
+tests/              62 个离线测试（API 测试在缺依赖时自动跳过）
 examples/           示例输出，含 api_examples.txt
 UPLOAD.md           上传 GitHub 的步骤
 tool.py             旧入口
@@ -225,7 +226,9 @@ tool.py             旧入口
 python -m unittest discover -s tests -v
 ```
 
-58 个测试，不需要密钥，也不需要联网。核心 48 个在任何环境都跑；10 个 API / Web 测试在装了 `fastapi`/`httpx` 时才运行，缺依赖会自动跳过。GitHub Actions 在每次 push 和 pull request 时分两组运行：核心测试覆盖 Python 3.8 / 3.11 / 3.13，API 测试覆盖 3.11 / 3.13。
+62 个测试，不需要密钥，也不需要联网。核心 51 个在任何环境都跑；11 个 API / Web 测试在装了 `fastapi`/`httpx` 时才运行，缺依赖会自动跳过。GitHub Actions 在每次 push 和 pull request 时分两组运行：核心测试覆盖 Python 3.8 / 3.11 / 3.13，API 测试覆盖 3.11 / 3.13。
+
+资料块在 `models.py` 里解析成 `Chunk` 对象，标签和掌握等级全链路只读字段，不再重复正则。词面检索与语义检索遵守同一个函数契约，策略层通过 `retrieve_fn` 注入检索器，所以查询改写、重难点汇总和并列概念拆分对两种模式都生效。两种检索器的分数口径不同（词面是词频重叠，语义是 0~1 的余弦相似度），命中阈值分别设定，避免语义模式误触发查询改写。
 
 ## 资料范围
 
@@ -233,7 +236,7 @@ python -m unittest discover -s tests -v
 
 ## 已知限制
 
-- 检索是词面匹配，不理解语义。不带主题词的提问，命中率不如直接写关键词。
+- 默认检索是词面匹配，不理解语义；可选的 TF-IDF 模式缓解了措辞差异，但仍不是嵌入模型级的语义理解。
 - 资料要按格式手工整理，目前不能直接导入 PDF 或 Word。
 - 不支持追问上下文，每个问题都独立检索。
 - HTTP API 默认只监听 127.0.0.1，没有鉴权；要对外暴露需自行加认证和限流。
@@ -246,6 +249,7 @@ python -m unittest discover -s tests -v
 - [x] 单元测试、CI、环境变量配置、dry-run
 - [x] 可选 HTTP API（检索 / 问答 / 出题 / 健康检查 + Swagger 文档）
 - [x] Web 界面（在线演示）+ 可选 TF-IDF 语义检索
+- [x] 结构重构：Chunk 领域模型、统一检索器契约、语义模式复用完整策略链
 - [ ] 基于嵌入模型的语义检索
 - [ ] 导入 PDF / Word 资料
 

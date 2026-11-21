@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from examrag import config
+from examrag.models import as_chunks
 from examrag.retrieval import (
     bigrams, clean, is_nav, level_of, load_chunks, retrieve, tags_of,
 )
@@ -37,14 +38,16 @@ class ChunkTests(unittest.TestCase):
             handle.write("A\n\nB\n\n\nC")
             path = handle.name
         try:
-            self.assertEqual(load_chunks(path), ["A", "B", "C"])
+            self.assertEqual([c.text for c in load_chunks(path)], ["A", "B", "C"])
         finally:
             os.unlink(path)
 
     def test_load_real_material(self):
         chunks = load_chunks(config.DEFAULT_MATERIAL)
         self.assertEqual(len(chunks), 99)
-        self.assertTrue(all(chunk.strip() for chunk in chunks))
+        self.assertTrue(all(c.text.strip() for c in chunks))
+        self.assertTrue(all(c.level in ("掌握", "理解", "了解") for c in chunks))
+        self.assertIn("text", chunks[0].as_dict())
 
     def test_level_of(self):
         self.assertEqual(level_of("【掌握·X】正文"), "掌握")
@@ -64,10 +67,10 @@ class ChunkTests(unittest.TestCase):
 
 class RetrieveTests(unittest.TestCase):
     def test_exact_title_hit_ranks_first(self):
-        chunks = [
+        chunks = as_chunks([
             "【了解·其他】信度效度都是测量指标",
             "【掌握·难度】难度是题目难易程度的指标",
-        ]
+        ])
         self.assertEqual(retrieve("难度的定义", chunks)[0], chunks[1])
 
     def test_weighted_semantics(self):
@@ -78,12 +81,12 @@ class RetrieveTests(unittest.TestCase):
         """
         broad = "【了解·信度】信度信度信度信度"
         focused = "【掌握·信度】信度"
-        chunks = [broad, focused]
-        self.assertEqual(retrieve("信度", chunks, weighted=False)[0], broad)
-        self.assertEqual(retrieve("信度", chunks, weighted=True)[0], focused)
+        chunks = as_chunks([broad, focused])
+        self.assertEqual(retrieve("信度", chunks, weighted=False)[0].text, broad)
+        self.assertEqual(retrieve("信度", chunks, weighted=True)[0].text, focused)
 
     def test_top_k_and_return_score(self):
-        chunks = ["【掌握·甲】甲甲", "【掌握·乙】乙乙", "【了解·丙】丙丙"]
+        chunks = as_chunks(["【掌握·甲】甲甲", "【掌握·乙】乙乙", "【了解·丙】丙丙"])
         result = retrieve("甲甲", chunks, top_k=1)
         self.assertEqual(len(result), 1)
         top, best = retrieve("甲甲", chunks, return_score=True)

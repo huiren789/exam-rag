@@ -3,15 +3,16 @@
 import unittest
 
 from examrag import semantic
+from examrag.models import as_chunks
 
 
-CHUNKS = [
+CHUNKS = as_chunks([
     "【掌握·难度的定义】难度是指测验试题的难易程度，通常用通过率 P 表示，P 越大越容易。",
     "【掌握·难度的作用】难度影响测验的区分度和信度，过难或过易都会降低区分能力。",
     "【理解·信度的定义】信度是指测量结果的可靠性或稳定性程度。",
     "【了解·效度的定义】效度是指测验能够测到所要测量特质的程度。",
     "======== 第一章 ========",
-]
+])
 
 
 class SemanticTests(unittest.TestCase):
@@ -19,11 +20,26 @@ class SemanticTests(unittest.TestCase):
         result = semantic.semantic_retrieve("测验题目有多难", CHUNKS, top_k=2)
         self.assertTrue(result)
         self.assertLessEqual(len(result), 2)
-        self.assertTrue(any("难度" in c for c in result))
+        self.assertTrue(any("难度" in c.text for c in result))
 
     def test_excludes_section_headers(self):
         result = semantic.semantic_retrieve("难度", CHUNKS, top_k=4)
-        self.assertFalse(any("========" in c for c in result))
+        self.assertFalse(any("========" in c.text for c in result))
+
+    def test_accepts_legacy_strings(self):
+        """旧调用传 List[str] 仍能工作：内部统一转 Chunk。"""
+        result = semantic.semantic_retrieve("难度", [c.text for c in CHUNKS], top_k=2)
+        self.assertTrue(all(hasattr(c, "text") for c in result))
+
+    def test_nav_block_downweighted_like_lexical(self):
+        """两种检索器同口径：导图/小结类块给正文让位。"""
+        blocks = as_chunks([
+            "【理解·导图】难度 难度 难度 难度",
+            "【掌握·难度的定义】难度是指测验试题的难易程度。",
+            "【了解·效度的定义】效度指测到特质的程度。",
+        ])
+        result = semantic.semantic_retrieve("难度的定义", blocks, top_k=3)
+        self.assertEqual(result[0].tag, "掌握·难度的定义")
 
     def test_return_score(self):
         result, score = semantic.semantic_retrieve("难度", CHUNKS, top_k=2, return_score=True)

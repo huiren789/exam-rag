@@ -6,15 +6,18 @@
 
 实现只用 Python 标准库（math / collections），不引入任何第三方依赖，
 因此不会影响项目"核心零依赖"的定位。资料块少（99 块）时性能足够。
+
+与 retrieval.retrieve 共用同一检索器契约，可作为 retrieve_fn 注入策略层。
 """
 
 import math
 import re
 from collections import Counter
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Sequence, Tuple, Union
 
 from .config import FILLERS, LEVEL_WEIGHTS
-from .retrieval import level_of
+from .models import Chunk, as_chunks
+from .retrieval import is_nav
 
 
 def _bigrams(text: str) -> Counter:
@@ -29,12 +32,12 @@ def _tokens(text: str) -> Counter:
     return _bigrams(text.strip() or text)
 
 
-def _idf(chunks: Sequence[str]) -> Dict[str, float]:
+def _idf(chunks: Sequence[Chunk]) -> Dict[str, float]:
     """计算逆文档频率：出现在越少资料块里的词，权重越高。"""
     n = len(chunks)
     doc_freq: Counter = Counter()
     for chunk in chunks:
-        for token in _bigrams(chunk):
+        for token in _bigrams(chunk.text):
             doc_freq[token] += 1
     return {
         token: math.log((n + 1) / (freq + 1)) + 1.0
@@ -64,38 +67,40 @@ def _cosine(a: Dict[str, float], b: Dict[str, float]) -> float:
 
 def semantic_retrieve(
     question: str,
-    chunks: Sequence[str],
+    chunks: Sequence[Chunk],
     top_k: int = 3,
     weighted: bool = False,
     return_score: bool = False,
-):
-    """语义检索：返回与问题最相关的资料块（接口对齐 retrieval.retrieve）。
+) -> Union[List[Chunk], Tuple[List[Chunk], float]]:
+    """语义检索：与问题最相关的资料块（与 retrieval.retrieve 同契约）。
 
-    章节标题行（========）不参与检索，与词面检索一致。
     weighted=True 时按掌握等级加权，供出题场景使用。
-    return_score=True 时返回 (块列表, 最高相似度)。
+    return_score=True 时返回 (块列表, 最高相似度)，供策略层判断是否需要查询改写。
     """
-    if not chunks:
+    blocks = as_chunks(chunks)
+    if not blocks:
         return ([], 0.0) if return_score else []
 
-    candidates = [c for c in chunks if not c.startswith("========")]
+    candidates = [c for c in blocks if not c.is_header]
     if not candidates:
-        candidates = list(chunks)
+        candidates = list(blocks)
 
     idf = _idf(candidates)
     q_vec = _vector(question, idf)
-    scored: List[Tuple[float, str]] = []
+    scored: List[Tuple[float, Chunk]] = []
     for chunk in candidates:
-        score = _cosine(q_vec, _vector(chunk, idf))
+        score = _cosine(q_vec, _vector(chunk.text, idf))
         if score > 0 and weighted:
-            score *= LEVEL_WEIGHTS.get(level_of(chunk), 1)
+            score *= LEVEL_WEIGHTS.get(chunk.level, 1)
+        if score > 0 and is_nav(chunk):
+            score *= 0.5  # 与词面检索同口径：目录/小结给正文让位
         scored.append((score, chunk))
 
     scored.sort(key=lambda item: item[0], reverse=True)
     best = scored[0][0] if scored else 0.0
     top = [chunk for score, chunk in scored[:top_k] if score > 0]
-    if not top:
-        top = [chunk for _, chunk in scored[:top_k]]
+    fallback = top if top else [chunk for _, chunk in scored[:top_k]]
+
     if return_score:
-        return top, best
-    return top
+        return fallback, best
+    return fallback

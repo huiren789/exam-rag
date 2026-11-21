@@ -13,7 +13,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from . import config, service
 from .llm import ExamRAGError, ask as default_ask
-from .retrieval import tags_of
+from .models import Chunk
 
 
 def _require_fastapi():
@@ -30,7 +30,7 @@ def _require_fastapi():
 
 
 def create_app(
-    chunks: Optional[List[str]] = None,
+    chunks: Optional[List[Chunk]] = None,
     ask_fn: Optional[Callable[[str], str]] = None,
 ) -> Any:
     """构造 FastAPI 应用。
@@ -64,7 +64,7 @@ def create_app(
         version=config.VERSION,
     )
 
-    def _chunks(override: Optional[str]) -> List[str]:
+    def _chunks(override: Optional[str]) -> List[Chunk]:
         if chunks is not None and not override:
             return chunks
         return service.load_material(override)
@@ -120,41 +120,27 @@ def create_app(
         """提问：检索相关资料后调用模型，回答注明依据。需要 API Key。"""
         _check_top_k(body.top_k)
         try:
-            picked = _chunks(body.material)
-            related, note, prompt = service.prepare_question(
-                body.question, picked, top_k=body.top_k, ask_fn=ask_fn,
+            # 共用 service 的组装逻辑，避免 API 与 CLI 两处实现分叉。
+            return service.answer_question(
+                body.question, _chunks(body.material),
+                top_k=body.top_k, ask_fn=_call_model,
                 semantic_mode=body.semantic,
             )
         except (ExamRAGError, FileNotFoundError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
-        answer = _call_model(prompt)
-        return {
-            "question": body.question,
-            "answer": answer,
-            "note": note,
-            "sources": [tags_of(related)] if related else [],
-            "chunks": related,
-        }
 
     @app.post("/exam")
     def exam_endpoint(body: ExamBody) -> Dict[str, Any]:
         """出题：按掌握等级加权检索后让模型出题。需要 API Key。"""
         _check_top_k(body.top_k)
         try:
-            picked = _chunks(body.material)
-            related, levels, prompt = service.prepare_exam(
-                body.topic, picked, top_k=body.top_k, semantic_mode=body.semantic
+            return service.generate_exam(
+                body.topic, _chunks(body.material),
+                top_k=body.top_k, ask_fn=_call_model,
+                semantic_mode=body.semantic,
             )
         except (ExamRAGError, FileNotFoundError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
-        answer = _call_model(prompt)
-        return {
-            "topic": body.topic,
-            "answer": answer,
-            "levels": levels,
-            "sources": [tags_of(related)] if related else [],
-            "chunks": related,
-        }
 
     return app
 
