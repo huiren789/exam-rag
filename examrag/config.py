@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import Dict, Optional
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 
 # 仓库根目录：无论从哪个工作目录启动，都能找到内置资料。
 ROOT = Path(__file__).resolve().parent.parent
@@ -48,6 +48,11 @@ FOCUS_KEYS = ("重难点", "重点", "考点", "必考")
 # 因此必须分别设阈值，不能共用一个 5，否则语义模式每次都会误触发查询改写。
 LEXICAL_HIT_SCORE = 5.0
 SEMANTIC_HIT_SCORE = 0.08
+VECTOR_HIT_SCORE = 0.25
+
+# 可选 embedding 检索：模型名与向量缓存位置（缓存不入 git）。
+VECTOR_MODEL = "BAAI/bge-small-zh-v1.5"
+VECTOR_CACHE_PATH = ROOT / ".cache" / "vectors.json"
 
 
 def _load_dotenv(path: Optional[Path] = None) -> Dict[str, str]:

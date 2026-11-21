@@ -76,6 +76,11 @@
           border-radius: 8px; padding: 12px 14px; margin-top: 12px; font-size: .9rem; }
   .chunk { border-left: 3px solid var(--accent); padding: 6px 0 6px 12px; margin-top: 10px; font-size: .88rem; color: #444; }
   .chunk .lv { font-size: .75rem; color: var(--accent); font-weight: 700; }
+  .evidence {
+    border-left: 3px solid #2E9E5B; padding: 6px 0 6px 12px; margin-top: 8px;
+    font-size: .86rem; color: #444;
+  }
+  .evidence .score { color: var(--muted); font-size: .76rem; }
   footer { text-align: center; color: var(--muted); font-size: .82rem; padding: 24px 12px 40px; }
   footer a { color: var(--accent); }
 </style>
@@ -101,7 +106,10 @@
       <span class="hint">检索块数</span>
       <input type="number" id="topk" value="3" min="1" max="8">
       <label class="hint" style="margin:0;display:flex;align-items:center;gap:5px;cursor:pointer">
-        <input type="checkbox" id="semantic" style="width:auto;margin:0"> 语义检索
+        <input type="checkbox" id="semantic" style="width:auto;margin:0"> TF-IDF 检索
+      </label>
+      <label class="hint" style="margin:0;display:flex;align-items:center;gap:5px;cursor:pointer">
+        <input type="checkbox" id="vector" style="width:auto;margin:0" disabled> 向量检索
       </label>
       <button class="run" id="run">提交</button>
     </div>
@@ -149,10 +157,14 @@ async function checkHealth() {
     const r = await fetch(apiUrl('/health'));
     const d = await r.json();
     const on = d.api_key_configured;
+    const hasVector = !!d.vector_available;
+    $('vector').disabled = !hasVector;
+    $('vector').title = hasVector ? '使用 embedding 向量检索' : '服务端未安装向量检索依赖';
     $('status').innerHTML =
       '<span class="dot ' + (on ? 'on' : 'off') + '"></span>' +
       '服务正常 · 资料 ' + d.chunks_available + ' 块 · 模型 ' + d.model +
-      ' · 密钥' + (on ? '已配置' : '未配置（可用「只看检索」）');
+      ' · 密钥' + (on ? '已配置' : '未配置（可用「只看检索」）') +
+      ' · 向量检索' + (hasVector ? '可用' : '未安装');
   } catch (e) {
     $('status').textContent = '无法连接服务：' + e.message;
   }
@@ -166,6 +178,16 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+function evidenceHtml(items) {
+  if (!items || !items.length) return '';
+  return '<div style="margin-top:12px;font-size:.85rem;color:var(--muted)">依据句（词面重合度）</div>' +
+    items.map(e =>
+      '<div class="evidence"><span class="lv">' + escapeHtml(e.tag) + ' · ' + escapeHtml(e.level) +
+      '</span><br>' + escapeHtml(e.sentence) +
+      ' <span class="score">重合 ' + e.score + '</span></div>'
+    ).join('');
+}
+
 $('run').addEventListener('click', async () => {
   const q = $('query').value.trim();
   if (!q) { alert('请先输入' + LABELS[mode][0]); return; }
@@ -176,9 +198,11 @@ $('run').addEventListener('click', async () => {
   try {
     const path = apiUrl('/' + mode);
     const semantic = $('semantic').checked;
+    const vector = $('vector').checked;
+    const options = { top_k: topK, semantic: semantic, vector: vector };
     const body = mode === 'exam'
-      ? { topic: q, top_k: topK, semantic: semantic }
-      : { question: q, top_k: topK, semantic: semantic };
+      ? Object.assign({ topic: q }, options)
+      : Object.assign({ question: q }, options);
     const r = await fetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -200,6 +224,7 @@ $('run').addEventListener('click', async () => {
         html += '<div class="chunk"><span class="lv">' + escapeHtml(c.level) + ' · ' + escapeHtml(c.tag) +
                 '</span><br>' + escapeHtml(c.text) + '</div>';
       });
+      html += evidenceHtml(data.evidence);
       html += '</div>';
     } else {
       html += '<div class="block"><h3>回答</h3><div class="answer">' + escapeHtml(data.answer) + '</div>';
@@ -213,6 +238,7 @@ $('run').addEventListener('click', async () => {
         html += '<div class="chunk"><span class="lv">' + escapeHtml(c.level) + ' · ' + escapeHtml(c.tag) +
                 '</span><br>' + escapeHtml(c.text) + '</div>';
       });
+      html += evidenceHtml(data.evidence);
       html += '</div>';
     }
     $('result').innerHTML = html;

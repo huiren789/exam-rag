@@ -19,6 +19,10 @@ CHUNKS = as_chunks([
 ])
 
 
+def vector_embed(texts):
+    return [[1.0 if "难度" in t else 0.0, 1.0 if "信度" in t else 0.0] for t in texts]
+
+
 @unittest.skipUnless(HAS_API_DEPS, "未安装 fastapi/httpx，跳过 API 测试")
 class ApiTests(unittest.TestCase):
     def setUp(self):
@@ -30,9 +34,28 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json()["status"], "ok")
         self.assertEqual(r.json()["chunks_available"], 3)
+        self.assertIn("vector_available", r.json())
         # 不回传本机绝对路径
         self.assertNotIn("\\", r.json()["material"])
         self.assertNotIn("/", r.json()["material"])
+
+    def test_vector_retrieve(self):
+        client = TestClient(create_app(chunks=CHUNKS, embed_fn=vector_embed))
+        r = client.post("/retrieve", json={
+            "question": "难度", "top_k": 2, "vector": True,
+        })
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertGreaterEqual(data["count"], 1)
+        self.assertTrue(data["evidence"])
+        self.assertEqual(data["chunks"][0]["tag"], "掌握·难度的定义")
+
+    def test_evidence_in_answer(self):
+        r = self.client.post("/ask", json={"question": "难度的定义", "top_k": 2})
+        self.assertEqual(r.status_code, 200)
+        evidence = r.json()["evidence"]
+        self.assertTrue(evidence)
+        self.assertIn("sentence", evidence[0])
 
     def test_retrieve_offline(self):
         r = self.client.post("/retrieve", json={"question": "难度的定义", "top_k": 2})

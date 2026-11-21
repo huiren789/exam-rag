@@ -10,10 +10,12 @@
 """
 
 from typing import Any, Callable, Dict, List, Optional
+import importlib.util
 
 from . import config, service
 from .llm import ExamRAGError, ask as default_ask
 from .models import Chunk
+from .vector import EmbedFn
 
 
 def _require_fastapi():
@@ -32,6 +34,7 @@ def _require_fastapi():
 def create_app(
     chunks: Optional[List[Chunk]] = None,
     ask_fn: Optional[Callable[[str], str]] = None,
+    embed_fn: Optional[EmbedFn] = None,
 ) -> Any:
     """构造 FastAPI 应用。
 
@@ -44,12 +47,14 @@ def create_app(
         top_k: int = 3
         material: Optional[str] = None
         semantic: bool = False
+        vector: bool = False
 
     class ExamBody(BaseModel):
         topic: str
         top_k: int = 3
         material: Optional[str] = None
         semantic: bool = False
+        vector: bool = False
 
     class RetrieveBody(BaseModel):
         question: str
@@ -57,6 +62,7 @@ def create_app(
         weighted: bool = False
         material: Optional[str] = None
         semantic: bool = False
+        vector: bool = False
 
     app = FastAPI(
         title="ExamRAG API",
@@ -99,6 +105,7 @@ def create_app(
             "material_error": material_error,
             "model": config.get_model(),
             "api_key_configured": bool(config.get_api_key()),
+            "vector_available": importlib.util.find_spec("sentence_transformers") is not None,
         }
 
     @app.post("/retrieve")
@@ -110,6 +117,7 @@ def create_app(
                 body.question, _chunks(body.material),
                 top_k=body.top_k, weighted=body.weighted,
                 semantic_mode=body.semantic,
+                vector_mode=body.vector, embed_fn=embed_fn,
             )
         except (ExamRAGError, FileNotFoundError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
@@ -125,6 +133,7 @@ def create_app(
                 body.question, _chunks(body.material),
                 top_k=body.top_k, ask_fn=_call_model,
                 semantic_mode=body.semantic,
+                vector_mode=body.vector, embed_fn=embed_fn,
             )
         except (ExamRAGError, FileNotFoundError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
@@ -138,6 +147,7 @@ def create_app(
                 body.topic, _chunks(body.material),
                 top_k=body.top_k, ask_fn=_call_model,
                 semantic_mode=body.semantic,
+                vector_mode=body.vector, embed_fn=embed_fn,
             )
         except (ExamRAGError, FileNotFoundError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))

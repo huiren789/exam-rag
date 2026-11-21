@@ -6,8 +6,11 @@ api / cli 里各用正则解析一遍（共 6 处），既重复又容易不一�
 """
 
 import re
+from collections import Counter
 from dataclasses import dataclass
 from typing import List, Sequence, Union
+
+from .config import FILLERS
 
 HEADER_PREFIX = "========"
 LEVEL_PATTERN = re.compile(r"【(掌握|理解|了解)")
@@ -67,3 +70,32 @@ def tag_of(chunk: Chunk) -> str:
 def tags_of(chunks: Sequence[Union[str, Chunk]]) -> str:
     """把多个块的标签拼成展示串，如「掌握·难度、理解·信度」。"""
     return "、".join(tag_of(c) for c in as_chunks(chunks))
+
+
+def _bigrams(text: str) -> Counter:
+    text = re.sub(r"\s", "", text)
+    return Counter(text[i:i + 2] for i in range(len(text) - 1))
+
+
+def evidence_sentences(text: str, question: str, top_n: int = 1) -> List[dict]:
+    """从资料块里挑出与问题最相关的原句，返回 [{"text", "score"}]。
+
+    score 是问题与句子共同两字词的出现次数（词面重合度），不是模型打分；
+    它只用于排序和展示，回答仍然只依据整块原文。
+    """
+    body = re.sub(r"^【[^】]*】", "", text.strip()).strip()
+    parts = [p.strip() for p in re.split(r"[。！？!?；;\n]+", body) if len(p.strip()) >= 4]
+    if not parts:
+        parts = [body or text.strip()]
+
+    query = question
+    for word in FILLERS:
+        query = query.replace(word, "")
+    query_bigrams = _bigrams(query.strip() or question)
+
+    scored = []
+    for part in parts:
+        overlap = query_bigrams & _bigrams(part)
+        scored.append({"text": part, "score": sum(overlap.values())})
+    scored.sort(key=lambda item: item["score"], reverse=True)
+    return scored[:top_n]

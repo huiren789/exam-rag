@@ -24,5 +24,8 @@ dist/
 Thumbs.db
 desktop.ini
 
+# 向量缓存（可能很大，且含本地模型输出）
+.cache/
+
 # 发布工具生成的内部标记文件
 *.genie
