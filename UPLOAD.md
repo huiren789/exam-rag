@@ -36,7 +36,7 @@ git commit -m "feat: ExamRAG 可溯源课程复习 RAG 工具（零依赖 + 测�
 3. 按下面填写：
    - **Repository name**：`exam-rag`
    - **Description**（可选，建议填）：
-     `有据可依的复习搭档——零依赖、可溯源的课程 RAG 命令行工具`
+     `ExamRAG — 有据可依的课程复习搭档：零依赖、可溯源的命令行 RAG 工具，已有 11 位同学体验使用`
    - **Public / Private**：选 **Public**（作品集展示建议公开；以后也能在 Settings 改）。
    - **不要勾选** Add a README file、Add .gitignore、Choose a license
      ——本地已有这些文件，勾了会产生冲突。
