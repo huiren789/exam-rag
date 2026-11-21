@@ -43,17 +43,20 @@ def create_app(
         question: str
         top_k: int = 3
         material: Optional[str] = None
+        semantic: bool = False
 
     class ExamBody(BaseModel):
         topic: str
         top_k: int = 3
         material: Optional[str] = None
+        semantic: bool = False
 
     class RetrieveBody(BaseModel):
         question: str
         top_k: int = 3
         weighted: bool = False
         material: Optional[str] = None
+        semantic: bool = False
 
     app = FastAPI(
         title="ExamRAG API",
@@ -106,6 +109,7 @@ def create_app(
             data = service.retrieve_only(
                 body.question, _chunks(body.material),
                 top_k=body.top_k, weighted=body.weighted,
+                semantic_mode=body.semantic,
             )
         except (ExamRAGError, FileNotFoundError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
@@ -118,7 +122,8 @@ def create_app(
         try:
             picked = _chunks(body.material)
             related, note, prompt = service.prepare_question(
-                body.question, picked, top_k=body.top_k, ask_fn=ask_fn
+                body.question, picked, top_k=body.top_k, ask_fn=ask_fn,
+                semantic_mode=body.semantic,
             )
         except (ExamRAGError, FileNotFoundError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
@@ -138,7 +143,7 @@ def create_app(
         try:
             picked = _chunks(body.material)
             related, levels, prompt = service.prepare_exam(
-                body.topic, picked, top_k=body.top_k
+                body.topic, picked, top_k=body.top_k, semantic_mode=body.semantic
             )
         except (ExamRAGError, FileNotFoundError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
@@ -160,9 +165,12 @@ _app: Any = None
 
 
 def get_app() -> Any:
+    """默认 ASGI app：带演示页。uvicorn examrag.api:app 与在线部署都用它。"""
     global _app
     if _app is None:
-        _app = create_app()
+        # 延迟导入 web，避免与 web.py 循环导入。
+        from .web import create_web_app
+        _app = create_web_app()
     return _app
 
 

@@ -7,7 +7,7 @@
 
 from typing import Callable, List, Optional, Sequence, Tuple
 
-from . import config
+from . import config, semantic
 from .llm import ExamRAGError, ask as default_ask
 from .retrieval import level_of, load_chunks, retrieve, tags_of
 from .smart import smart_context
@@ -48,13 +48,19 @@ def prepare_question(
     chunks: Sequence[str],
     top_k: int = 3,
     ask_fn: Optional[AskFn] = None,
+    semantic_mode: bool = False,
 ) -> Tuple[List[str], Optional[str], str]:
     """准备问答：返回 (检索到的块, 给用户看的说明, 提示词)。
 
     本函数不产出最终答案；模型调用由调用方执行，便于 dry-run 与测试注入。
+    semantic_mode=True 时用 TF-IDF 语义检索替换词面挑块。
     """
-    ask = ask_fn or default_ask
-    related, note = smart_context(question, chunks, top_k=top_k, ask_fn=ask)
+    if semantic_mode:
+        related = semantic.semantic_retrieve(question, chunks, top_k=top_k)
+        note = "（已使用 TF-IDF 语义检索挑选资料块）"
+    else:
+        ask = ask_fn or default_ask
+        related, note = smart_context(question, chunks, top_k=top_k, ask_fn=ask)
     return list(related), note, question_prompt(question, related)
 
 
@@ -62,9 +68,13 @@ def prepare_exam(
     topic: str,
     chunks: Sequence[str],
     top_k: int = 3,
+    semantic_mode: bool = False,
 ) -> Tuple[List[str], str, str]:
     """准备出题：返回 (检索到的块, 掌握等级串, 提示词)。出题按掌握度加权检索。"""
-    related = retrieve(topic, chunks, top_k=top_k, weighted=True)
+    if semantic_mode:
+        related = semantic.semantic_retrieve(topic, chunks, top_k=top_k, weighted=True)
+    else:
+        related = retrieve(topic, chunks, top_k=top_k, weighted=True)
     levels = "、".join(level_of(chunk) for chunk in related)
     return list(related), levels, exam_prompt(topic, related)
 
@@ -74,10 +84,13 @@ def answer_question(
     chunks: Sequence[str],
     top_k: int = 3,
     ask_fn: Optional[AskFn] = None,
+    semantic_mode: bool = False,
 ) -> dict:
     """一步完成问答，返回结构化结果（供 HTTP API 使用）。"""
     ask = ask_fn or default_ask
-    related, note, prompt = prepare_question(question, chunks, top_k=top_k, ask_fn=ask)
+    related, note, prompt = prepare_question(
+        question, chunks, top_k=top_k, ask_fn=ask, semantic_mode=semantic_mode
+    )
     answer = ask(prompt)
     return {
         "question": question,
@@ -93,10 +106,13 @@ def generate_exam(
     chunks: Sequence[str],
     top_k: int = 3,
     ask_fn: Optional[AskFn] = None,
+    semantic_mode: bool = False,
 ) -> dict:
     """一步完成出题，返回结构化结果（供 HTTP API 使用）。"""
     ask = ask_fn or default_ask
-    related, levels, prompt = prepare_exam(topic, chunks, top_k=top_k)
+    related, levels, prompt = prepare_exam(
+        topic, chunks, top_k=top_k, semantic_mode=semantic_mode
+    )
     answer = ask(prompt)
     return {
         "topic": topic,
@@ -112,9 +128,15 @@ def retrieve_only(
     chunks: Sequence[str],
     top_k: int = 3,
     weighted: bool = False,
+    semantic_mode: bool = False,
 ) -> dict:
     """纯本地检索：不调用模型，返回可核对的资料块标签与等级。"""
-    related = retrieve(question, chunks, top_k=top_k, weighted=weighted)
+    if semantic_mode:
+        related = semantic.semantic_retrieve(
+            question, chunks, top_k=top_k, weighted=weighted
+        )
+    else:
+        related = retrieve(question, chunks, top_k=top_k, weighted=weighted)
     return {
         "question": question,
         "count": len(related),

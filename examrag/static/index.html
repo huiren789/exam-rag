@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ExamRAG — 有据可依的课程复习搭档</title>
+<style>
+  :root {
+    --primary: #1F4E79;
+    --accent: #2E75B6;
+    --bg: #F5F7FA;
+    --card: #FFFFFF;
+    --text: #222222;
+    --muted: #666666;
+    --line: #DCE4EC;
+    --tag: #EAF1F8;
+    --warn: #8A5A00;
+    --warnbg: #FFF6E5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    line-height: 1.6;
+  }
+  header {
+    background: var(--primary); color: #fff; padding: 22px 20px 18px;
+    text-align: center;
+  }
+  header h1 { margin: 0; font-size: 1.5rem; }
+  header p { margin: 6px 0 0; opacity: .85; font-size: .9rem; }
+  .wrap { max-width: 760px; margin: 22px auto; padding: 0 16px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 20px; box-shadow: 0 2px 8px rgba(31,78,121,.06);
+  }
+  .tabs { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+  .tab {
+    flex: 1; min-width: 120px; padding: 10px 8px; border: 1px solid var(--line);
+    background: #fff; color: var(--primary); border-radius: 8px; cursor: pointer;
+    font-size: .95rem; font-weight: 600;
+  }
+  .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  label { display: block; font-size: .9rem; color: var(--muted); margin-bottom: 6px; }
+  input[type=text] {
+    width: 100%; padding: 11px 12px; border: 1px solid var(--line);
+    border-radius: 8px; font-size: 1rem; margin-bottom: 12px;
+  }
+  input[type=number] { width: 90px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  button.run {
+    background: var(--primary); color: #fff; border: none; border-radius: 8px;
+    padding: 11px 22px; font-size: 1rem; cursor: pointer; font-weight: 600;
+  }
+  button.run:disabled { opacity: .5; cursor: not-allowed; }
+  .hint { font-size: .85rem; color: var(--muted); }
+  .status {
+    margin-top: 16px; font-size: .85rem; color: var(--muted);
+    border-top: 1px dashed var(--line); padding-top: 12px;
+  }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+  .dot.on { background: #2E9E5B; }
+  .dot.off { background: #C9A227; }
+  .result { margin-top: 18px; display: none; }
+  .result.show { display: block; }
+  .block { background: #FAFCFE; border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-top: 12px; }
+  .block h3 { margin: 0 0 8px; font-size: .95rem; color: var(--primary); }
+  .answer { white-space: pre-wrap; font-size: .96rem; }
+  .tags { margin-top: 10px; }
+  .tag {
+    display: inline-block; background: var(--tag); color: var(--primary);
+    border-radius: 20px; padding: 3px 12px; font-size: .8rem; margin: 0 6px 6px 0;
+  }
+  .note { color: var(--accent); font-size: .85rem; margin-top: 8px; }
+  .warn { background: var(--warnbg); color: var(--warn); border: 1px solid #F0D9A8;
+          border-radius: 8px; padding: 12px 14px; margin-top: 12px; font-size: .9rem; }
+  .chunk { border-left: 3px solid var(--accent); padding: 6px 0 6px 12px; margin-top: 10px; font-size: .88rem; color: #444; }
+  .chunk .lv { font-size: .75rem; color: var(--accent); font-weight: 700; }
+  footer { text-align: center; color: var(--muted); font-size: .82rem; padding: 24px 12px 40px; }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>ExamRAG</h1>
+  <p>有据可依的课程复习搭档 · 每个回答都能翻回原文核对</p>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <div class="tabs">
+      <button class="tab active" data-mode="ask">提问</button>
+      <button class="tab" data-mode="exam">出题</button>
+      <button class="tab" data-mode="retrieve">只看检索</button>
+    </div>
+
+    <label id="input-label">你的问题</label>
+    <input type="text" id="query" placeholder="例如：难度的定义是什么" autocomplete="off">
+
+    <div class="row">
+      <span class="hint">检索块数</span>
+      <input type="number" id="topk" value="3" min="1" max="8">
+      <label class="hint" style="margin:0;display:flex;align-items:center;gap:5px;cursor:pointer">
+        <input type="checkbox" id="semantic" style="width:auto;margin:0"> 语义检索
+      </label>
+      <button class="run" id="run">提交</button>
+    </div>
+
+    <div class="status" id="status">正在检查服务状态…</div>
+    <div class="result" id="result"></div>
+  </div>
+</div>
+
+<footer>
+  内置《教育测量与评价》资料 · 源码 <a href="https://github.com/huiren789/exam-rag">github.com/huiren789/exam-rag</a>
+</footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let mode = 'ask';
+// 在线预览链接会带 ?sharecode=xxx，所有 API 请求都要带上它，否则被网关拦截。
+const SHARE_CODE = new URLSearchParams(location.search).get('sharecode') || '';
+function apiUrl(path) {
+  return SHARE_CODE ? path + '?sharecode=' + encodeURIComponent(SHARE_CODE) : path;
+}
+
+const LABELS = {
+  ask: ['你的问题', '例如：难度的定义是什么'],
+  exam: ['出题主题', '例如：信度'],
+  retrieve: ['检索关键词', '例如：难度的定义（无需密钥）']
+};
+const NO_KEY_TIP = '当前服务未配置模型密钥，回答类功能不可用。「只看检索」仍可离线使用，能看到程序挑出了哪些资料块。';
+
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    mode = btn.dataset.mode;
+    $('input-label').textContent = LABELS[mode][0];
+    $('query').placeholder = LABELS[mode][1];
+    $('result').className = 'result';
+  });
+});
+
+$('query').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('run').click(); });
+
+async function checkHealth() {
+  try {
+    const r = await fetch(apiUrl('/health'));
+    const d = await r.json();
+    const on = d.api_key_configured;
+    $('status').innerHTML =
+      '<span class="dot ' + (on ? 'on' : 'off') + '"></span>' +
+      '服务正常 · 资料 ' + d.chunks_available + ' 块 · 模型 ' + d.model +
+      ' · 密钥' + (on ? '已配置' : '未配置（可用「只看检索」）');
+  } catch (e) {
+    $('status').textContent = '无法连接服务：' + e.message;
+  }
+}
+
+function tagHtml(tags) {
+  if (!tags || !tags.length) return '';
+  return '<div class="tags">' + tags.map(t => '<span class="tag">' + escapeHtml(t) + '</span>').join('') + '</div>';
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+$('run').addEventListener('click', async () => {
+  const q = $('query').value.trim();
+  if (!q) { alert('请先输入' + LABELS[mode][0]); return; }
+  const topK = Math.max(1, Math.min(8, parseInt($('topk').value, 10) || 3));
+  $('run').disabled = true;
+  $('run').textContent = '处理中…';
+  $('result').className = 'result';
+  try {
+    const path = apiUrl('/' + mode);
+    const semantic = $('semantic').checked;
+    const body = mode === 'exam'
+      ? { topic: q, top_k: topK, semantic: semantic }
+      : { question: q, top_k: topK, semantic: semantic };
+    const r = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      const msg = (data.detail && data.detail.indexOf('API Key') >= 0)
+        ? NO_KEY_TIP + '\n\n原始提示：' + data.detail
+        : (data.detail || '请求失败');
+      $('result').innerHTML = '<div class="warn">' + escapeHtml(msg).replace(/\n/g, '<br>') + '</div>';
+      $('result').className = 'result show';
+      return;
+    }
+    let html = '';
+    if (mode === 'retrieve') {
+      html += '<div class="block"><h3>检索到 ' + data.count + ' 块资料</h3>' + tagHtml(data.sources);
+      (data.chunks || []).forEach(c => {
+        html += '<div class="chunk"><span class="lv">' + escapeHtml(c.level) + ' · ' + escapeHtml(c.tag) +
+                '</span><br>' + escapeHtml(c.text) + '</div>';
+      });
+      html += '</div>';
+    } else {
+      html += '<div class="block"><h3>回答</h3><div class="answer">' + escapeHtml(data.answer) + '</div>';
+      if (data.note) html += '<div class="note">' + escapeHtml(data.note) + '</div>';
+      html += '<div style="margin-top:10px;font-size:.85rem;color:var(--muted)">依据的资料块</div>' +
+              tagHtml(data.sources);
+      if (mode === 'exam' && data.levels) {
+        html += '<div class="note">检索块掌握等级：' + escapeHtml(data.levels) + '</div>';
+      }
+      (data.chunks || []).forEach(c => {
+        html += '<div class="chunk"><span class="lv">' + escapeHtml(c.level) + ' · ' + escapeHtml(c.tag) +
+                '</span><br>' + escapeHtml(c.text) + '</div>';
+      });
+      html += '</div>';
+    }
+    $('result').innerHTML = html;
+    $('result').className = 'result show';
+  } catch (e) {
+    $('result').innerHTML = '<div class="warn">请求出错：' + escapeHtml(e.message) + '</div>';
+    $('result').className = 'result show';
+  } finally {
+    $('run').disabled = false;
+    $('run').textContent = '提交';
+  }
+});
+
+checkHealth();
+</script>
+</body>
+</html>

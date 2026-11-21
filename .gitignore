@@ -23,3 +23,6 @@ dist/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# 发布工具生成的内部标记文件
+*.genie

@@ -33,6 +33,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--dry-run", action="store_true",
         help="只显示检索结果与提示词，不调用模型；无需 API Key，可离线演示",
     )
+    parser.add_argument(
+        "--semantic", action="store_true",
+        help="用 TF-IDF 语义检索挑块（默认词面匹配）；同为离线、零依赖",
+    )
     parser.add_argument("--version", action="version", version="ExamRAG " + config.VERSION)
     return parser
 
@@ -51,9 +55,12 @@ def _run_exam(
     top_k: int,
     ask_fn: AskFn,
     dry_run: bool,
+    semantic_mode: bool = False,
 ) -> None:
     """出题模式：按掌握等级加权检索，再让模型出题。"""
-    related, levels, prompt = service.prepare_exam(topic, chunks, top_k=top_k)
+    related, levels, prompt = service.prepare_exam(
+        topic, chunks, top_k=top_k, semantic_mode=semantic_mode
+    )
     print("（检索到：" + tags_of(related) + "｜等级：" + levels + "）")
     answer = ask_fn(prompt)
     if not dry_run:
@@ -66,9 +73,12 @@ def _run_question(
     top_k: int,
     ask_fn: AskFn,
     dry_run: bool,
+    semantic_mode: bool = False,
 ) -> None:
     """普通问答：检索上下文、拼提示词、输出回答。"""
-    related, note, prompt = service.prepare_question(question, chunks, top_k=top_k, ask_fn=ask_fn)
+    related, note, prompt = service.prepare_question(
+        question, chunks, top_k=top_k, ask_fn=ask_fn, semantic_mode=semantic_mode
+    )
     if note:
         print(note)
     print("（检索到：" + tags_of(related) + "）")
@@ -77,7 +87,7 @@ def _run_question(
         print("\nAI：", answer, "\n")
 
 
-def _repl(chunks: List[str], top_k: int, ask_fn: AskFn, dry_run: bool) -> None:
+def _repl(chunks: List[str], top_k: int, ask_fn: AskFn, dry_run: bool, semantic_mode: bool = False) -> None:
     """交互式命令行循环，保留原版使用习惯。"""
     print("已加载 %d 块资料。" % len(chunks))
     print(INTRO)
@@ -95,9 +105,9 @@ def _repl(chunks: List[str], top_k: int, ask_fn: AskFn, dry_run: bool) -> None:
             if not topic:
                 print("请在「出题」后写上主题，例如：出题 信度")
                 continue
-            _run_exam(topic, chunks, top_k, ask_fn, dry_run)
+            _run_exam(topic, chunks, top_k, ask_fn, dry_run, semantic_mode)
         else:
-            _run_question(cmd, chunks, top_k, ask_fn, dry_run)
+            _run_question(cmd, chunks, top_k, ask_fn, dry_run, semantic_mode)
 
 
 def main(argv: List[str] = None) -> int:
@@ -115,13 +125,13 @@ def main(argv: List[str] = None) -> int:
             topic = (args.exam or args.topic or args.question or "").strip()
             if not topic:
                 raise ExamRAGError("请提供出题主题，例如：--exam 信度")
-            _run_exam(topic, chunks, args.top_k, ask_fn, args.dry_run)
+            _run_exam(topic, chunks, args.top_k, ask_fn, args.dry_run, args.semantic)
         elif args.question:
-            _run_question(args.question, chunks, args.top_k, ask_fn, args.dry_run)
+            _run_question(args.question, chunks, args.top_k, ask_fn, args.dry_run, args.semantic)
         elif args.topic:
-            _run_question(args.topic, chunks, args.top_k, ask_fn, args.dry_run)
+            _run_question(args.topic, chunks, args.top_k, ask_fn, args.dry_run, args.semantic)
         else:
-            _repl(chunks, args.top_k, ask_fn, args.dry_run)
+            _repl(chunks, args.top_k, ask_fn, args.dry_run, args.semantic)
     except (ExamRAGError, FileNotFoundError) as exc:
         print("错误：" + str(exc))
         return 1

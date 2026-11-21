@@ -58,6 +58,20 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertIn("测试桩", r.json()["answer"])
 
+    def test_semantic_retrieve(self):
+        r = self.client.post("/retrieve", json={
+            "question": "测验题目有多难", "top_k": 2, "semantic": True,
+        })
+        self.assertEqual(r.status_code, 200)
+        self.assertGreaterEqual(r.json()["count"], 1)
+
+    def test_semantic_ask(self):
+        r = self.client.post("/ask", json={
+            "question": "难度", "top_k": 2, "semantic": True,
+        })
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("语义检索", r.json()["note"])
+
     def test_invalid_top_k(self):
         r = self.client.post("/retrieve", json={"question": "x", "top_k": 0})
         self.assertEqual(r.status_code, 400)
@@ -79,6 +93,16 @@ class ApiTests(unittest.TestCase):
         r = self.client.get("/openapi.json")
         self.assertEqual(r.status_code, 200)
         self.assertIn("/ask", r.json()["paths"])
+
+    def test_web_index(self):
+        from examrag.web import create_web_app
+        client = TestClient(create_web_app())
+        r = client.get("/")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("ExamRAG", r.text)
+        self.assertIn("只看检索", r.text)
+        r = client.get("/static/index.html")
+        self.assertEqual(r.status_code, 200)
 
 
 if __name__ == "__main__":

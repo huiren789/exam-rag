@@ -85,6 +85,21 @@ class StructuredTests(unittest.TestCase):
         # 章节标题行不参与检索
         self.assertFalse(any("========" in c["text"] for c in result["chunks"]))
 
+    def test_semantic_modes(self):
+        r = service.retrieve_only("难度的定义", CHUNKS, top_k=2, semantic_mode=True)
+        self.assertGreaterEqual(r["count"], 1)
+        related, note, prompt = service.prepare_question(
+            "难度的定义", CHUNKS, top_k=2, semantic_mode=True
+        )
+        self.assertIn("语义检索", note)
+        self.assertTrue(related)
+        self.assertIn("难度", prompt)
+        exam_related, levels, _ = service.prepare_exam(
+            "难度", CHUNKS, top_k=2, semantic_mode=True
+        )
+        self.assertTrue(exam_related)
+        self.assertTrue(levels)
+
 
 if __name__ == "__main__":
     unittest.main()

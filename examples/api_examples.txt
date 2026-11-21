@@ -1,0 +1,113 @@
+ExamRAG HTTP API 调用示例（v0.3.0）
+
+启动服务：
+    pip install -e ".[api]"
+    python -m examrag.api
+默认地址 http://127.0.0.1:8000，接口文档 http://127.0.0.1:8000/docs
+配置好 API Key 后 /ask 与 /exam 才会返回模型回答；未配置时这两个接口返回 400。
+/health 与 /retrieve 离线可用，不需要密钥。
+
+────────────────────────────────────────
+1. 健康检查 GET /health
+
+请求：
+    curl http://127.0.0.1:8000/health
+
+响应（真实输出，api_key_configured 取决于本机配置）：
+{
+  "status": "ok",
+  "version": "0.3.0",
+  "chunks_available": 99,
+  "material": "material.txt",
+  "material_error": null,
+  "model": "Qwen/Qwen3-8B",
+  "api_key_configured": false
+}
+说明：只回传资料文件名，不回传本机绝对路径；不回传密钥本身。
+
+
+────────────────────────────────────────
+2. 纯本地检索 POST /retrieve（无需密钥）
+
+请求：
+    curl -X POST http://127.0.0.1:8000/retrieve \
+      -H "Content-Type: application/json" \
+      -d '{"question": "难度的定义", "top_k": 2}'
+
+响应（真实输出；text 字段此处截断展示，实际返回完整资料块）：
+{
+  "question": "难度的定义",
+  "count": 2,
+  "sources": [
+    "掌握·难度的定义、理解·信度的定义"
+  ],
+  "chunks": [
+    {
+      "tag": "掌握·难度的定义",
+      "level": "掌握",
+      "text": "【掌握·难度的定义】难度是指测验试题或测量项目的难易程度，通常用符号P表示……"
+    },
+    {
+      "tag": "理解·信度的定义",
+      "level": "理解",
+      "text": "【理解·信度的定义】信度是指可靠性或稳定性程度……"
+    }
+  ]
+}
+可选字段 "weighted": true 会按掌握等级加权检索，用于出题场景。
+
+
+────────────────────────────────────────
+3. 提问 POST /ask（需要 API Key）
+
+请求：
+    curl -X POST http://127.0.0.1:8000/ask \
+      -H "Content-Type: application/json" \
+      -d '{"question": "难度的定义是什么", "top_k": 2}'
+
+响应结构（answer 为模型生成，措辞取决于所配模型；
+sources/chunks 与 note 是程序的真实输出字段）：
+{
+  "question": "难度的定义是什么",
+  "answer": "难度是衡量试题难易程度的指标，通常用通过率 P 表示……依据：【掌握·难度的定义】",
+  "note": null,
+  "sources": [
+    "掌握·难度的定义、理解·信度的定义"
+  ],
+  "chunks": [ ... 同 /retrieve 的资料块结构 ... ]
+}
+未配置密钥时的响应（真实输出，HTTP 400）：
+{"detail": "未检测到 API Key。请设置环境变量 SILICONFLOW_API_KEY，或复制 .env.example 为 .env 并在其中填写；只想看检索效果可加 --dry-run，无需密钥。"}
+
+
+────────────────────────────────────────
+4. 出题 POST /exam（需要 API Key）
+
+请求：
+    curl -X POST http://127.0.0.1:8000/exam \
+      -H "Content-Type: application/json" \
+      -d '{"topic": "信度", "top_k": 2}'
+
+响应结构（answer 为模型生成的 3 道复习题；levels 是检索块的掌握等级）：
+{
+  "topic": "信度",
+  "answer": "1.（简答）重测信度的误差变异来源是什么？……",
+  "levels": "掌握、掌握",
+  "sources": [
+    "掌握·重测信度、掌握·重测信度的局限与适用"
+  ],
+  "chunks": [ ... ]
+}
+
+
+────────────────────────────────────────
+常见错误（HTTP 400）
+
+top_k 小于 1：
+    curl -X POST http://127.0.0.1:8000/retrieve \
+      -H "Content-Type: application/json" -d '{"question":"x","top_k":0}'
+    {"detail": "top_k 必须大于等于 1。"}
+
+资料文件为空或路径错误：返回 400，detail 为中文原因说明。
+
+密钥只从环境变量或 .env 读取，不经过 HTTP 请求，也不会出现在任何响应里。

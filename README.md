@@ -4,7 +4,7 @@
 ![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue)
 ![MIT](https://img.shields.io/badge/license-MIT-green)
 
-ExamRAG 是一个可溯源的课程复习工具——只用本地词面检索挑出资料块交给大模型作答，每个回答都能翻回原文核对。提供命令行和可选的 HTTP API 两种用法，核心功能零第三方依赖。已有 11 位同学体验使用。
+ExamRAG 是一个可溯源的课程复习工具——用本地检索挑出资料块交给大模型作答，每个回答都能翻回原文核对。提供命令行、Web 界面和 HTTP API 三种用法，核心功能零第三方依赖。**在线演示：https://examrag-demo.app.workbuddy.host/?sharecode=YTW7YFIS3R** 。已有 11 位同学体验使用。
 
 ## 解决什么问题
 
@@ -15,13 +15,15 @@ ExamRAG 把「找资料」这一步放在本地完成。检索不联网、不花
 ## 主要功能
 
 - 本地检索：按两字词出现次数匹配，标题命中加权，目录和小结类块降权。
+- 语义检索：可选的 TF-IDF + 余弦相似度模式（`--semantic` / API 的 `semantic` 字段），同为纯标准库、离线可用，与词面检索互补。
 - 分层出题：按【掌握】【理解】【了解】标签加权检索，优先从掌握级内容出题。
 - 查询改写：检索分数偏低时，让模型提取关键词再检索一次。
 - 重难点汇总：问「信度的重难点」这类问题时，让模型从标题清单里挑相关块。
 - 并列概念拆分：问「信度和难度」时，拆成两段分别检索再合并结果。
 - 离线演示：`--dry-run` 不调用模型，只打印检索结果和提示词，不需要密钥。
+- Web 界面：一个单页演示界面，提问 / 出题 / 只看检索三个标签，展示带出处的回答；未配密钥时「只看检索」仍可用。
 - 可选 HTTP API：FastAPI 提供 `/ask`、`/exam`、`/retrieve`、`/health` 四个接口，带自动生成的 Swagger 文档。
-- 零第三方依赖：核心只用 Python 标准库；API 按需安装。47 个离线测试，CI 覆盖 Python 3.8 / 3.11 / 3.13。
+- 零第三方依赖：核心与语义检索都用 Python 标准库；Web/API 按需安装。58 个离线测试，CI 覆盖 Python 3.8 / 3.11 / 3.13。
 
 ## 安装方法
 
@@ -69,6 +71,7 @@ python -m examrag --topic "信度的重难点"        # 汇总重难点
 python -m examrag -q "难度的定义" --dry-run     # 离线看检索结果和提示词
 python -m examrag -q "效度" --top-k 5          # 取 5 块资料
 python -m examrag -q "信度" --material my.txt  # 换一份资料
+python -m examrag -q "信度" --semantic          # 用 TF-IDF 语义检索挑块
 ```
 
 | 参数 | 说明 |
@@ -79,20 +82,24 @@ python -m examrag -q "信度" --material my.txt  # 换一份资料
 | `--top-k N` | 检索几块资料，默认 3 |
 | `--material PATH` | 指定资料文件 |
 | `--dry-run` | 只显示检索结果和提示词，不联网 |
+| `--semantic` | 用 TF-IDF 语义检索挑块（默认词面匹配），离线零依赖 |
 | `--version` | 查看版本 |
 
 退出码：`0` 成功，`1` 配置、网络或资料错误，`130` 用户按 Ctrl+C 中断。
 
-## HTTP API（可选）
+## Web 界面与 HTTP API（可选）
 
-核心工具不装任何第三方库也能用。如果想把它接进 Web 页面或其他程序，再装 API 那一组依赖：
+核心工具不装任何第三方库也能用。想要网页界面或接口，再装这一组依赖：
 
 ```bash
 pip install -e ".[api]"
-python -m examrag.api        # 启动后访问 http://127.0.0.1:8000/docs
+python -m examrag.web        # Web 界面：http://127.0.0.1:8000
+python -m examrag.api        # 只有接口：http://127.0.0.1:8000/docs
 ```
 
-也可以直接 `uvicorn examrag.api:app --reload`。`/docs` 是 FastAPI 自动生成的交互文档，可直接在页面里填参数调试。
+也可以直接 `uvicorn examrag.api:app --reload`（根路径同样带演示页）。`/docs` 是 FastAPI 自动生成的交互文档，可直接在页面里填参数调试。
+
+**在线演示**：https://examrag-demo.app.workbuddy.host/?sharecode=YTW7YFIS3R （线上未配置模型密钥，提问/出题会给出提示，「只看检索」可正常使用）。
 
 四个接口：
 
@@ -122,9 +129,9 @@ curl -X POST http://127.0.0.1:8000/retrieve \
 }
 ```
 
-`/ask` 的请求体是 `{"question": "...", "top_k": 3}`，响应含 `answer`、`sources`（依据块标签）和 `note`（查询改写提示）；`/exam` 的请求体是 `{"topic": "...", "top_k": 3}`，响应额外含 `levels`（检索块的掌握等级）。缺密钥、资料路径错误、`top_k < 1` 都会返回 400 和中文说明。
+`/ask` 的请求体是 `{"question": "...", "top_k": 3}`，响应含 `answer`、`sources`（依据块标签）和 `note`（查询改写提示）；`/exam` 的请求体是 `{"topic": "...", "top_k": 3}`，响应额外含 `levels`（检索块的掌握等级）。三个接口都接受可选的 `"semantic": true` 来启用语义检索。缺密钥、资料路径错误、`top_k < 1` 都会返回 400 和中文说明。
 
-密钥只从环境变量或 `.env` 读取，不经过 HTTP 请求，也不会出现在响应里。
+密钥只从环境变量或 `.env` 读取，不经过 HTTP 请求，也不会出现在响应里。四个接口的完整请求/响应示例（含真实输出与错误响应）见 `examples/api_examples.txt`。
 
 ## 输入 / 输出案例
 
@@ -199,12 +206,15 @@ examrag/
   retrieval.py   本地检索
   llm.py         模型调用和错误处理
   smart.py       查询改写、重难点、并列概念拆分
+  semantic.py    可选的 TF-IDF 语义检索（纯标准库）
   service.py     CLI 与 API 共用的检索、提示词与结果组装
   cli.py         命令行参数和交互循环
   api.py         可选的 FastAPI HTTP 接口
+  web.py         Web 演示界面入口
+  static/        演示页 HTML
 data/material.txt   内置资料，99 块
-tests/              47 个离线测试（API 测试在缺依赖时自动跳过）
-examples/           示例输出
+tests/              58 个离线测试（API 测试在缺依赖时自动跳过）
+examples/           示例输出，含 api_examples.txt
 UPLOAD.md           上传 GitHub 的步骤
 tool.py             旧入口
 ```
@@ -215,7 +225,7 @@ tool.py             旧入口
 python -m unittest discover -s tests -v
 ```
 
-47 个测试，不需要密钥，也不需要联网。核心 39 个在任何环境都跑；8 个 API 测试在装了 `fastapi`/`httpx` 时才运行，缺依赖会自动跳过。GitHub Actions 在每次 push 和 pull request 时分两组运行：核心测试覆盖 Python 3.8 / 3.11 / 3.13，API 测试覆盖 3.11 / 3.13。
+58 个测试，不需要密钥，也不需要联网。核心 48 个在任何环境都跑；10 个 API / Web 测试在装了 `fastapi`/`httpx` 时才运行，缺依赖会自动跳过。GitHub Actions 在每次 push 和 pull request 时分两组运行：核心测试覆盖 Python 3.8 / 3.11 / 3.13，API 测试覆盖 3.11 / 3.13。
 
 ## 资料范围
 
@@ -235,8 +245,8 @@ python -m unittest discover -s tests -v
 - [x] 关键词检索、出题、分层加权、查询改写
 - [x] 单元测试、CI、环境变量配置、dry-run
 - [x] 可选 HTTP API（检索 / 问答 / 出题 / 健康检查 + Swagger 文档）
-- [ ] 向量语义检索
-- [ ] Web 界面
+- [x] Web 界面（在线演示）+ 可选 TF-IDF 语义检索
+- [ ] 基于嵌入模型的语义检索
 - [ ] 导入 PDF / Word 资料
 
 ## License

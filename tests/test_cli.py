@@ -30,12 +30,12 @@ class CliTests(unittest.TestCase):
     def test_module_version(self):
         result = _run("-m", "examrag", "--version")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("0.2.0", result.stdout)
+        self.assertIn("0.3.0", result.stdout)
 
     def test_tool_shim_version(self):
         result = _run("tool.py", "--version")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("0.2.0", result.stdout)
+        self.assertIn("0.3.0", result.stdout)
 
     def test_dry_run_without_api_key(self):
         result = _run("-m", "examrag", "-q", "难度的定义", "--dry-run")
@@ -53,6 +53,12 @@ class CliTests(unittest.TestCase):
     def test_custom_material(self):
         result = _run("-m", "examrag", "-q", "信度", "--dry-run", "--material", "data/material.txt")
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("检索到", result.stdout)
+
+    def test_semantic_dry_run(self):
+        result = _run("-m", "examrag", "-q", "信度", "--dry-run", "--semantic")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("语义检索", result.stdout)
         self.assertIn("检索到", result.stdout)
 
 
