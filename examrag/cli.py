@@ -3,7 +3,7 @@
 import argparse
 from typing import Callable, List, Sequence
 
-from . import config, service
+from . import config, service, vector
 from .llm import ExamRAGError, ask as default_ask
 from .models import Chunk
 from .retrieval import tags_of
@@ -40,7 +40,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--vector", action="store_true",
-        help="用 embedding 向量检索（需先 pip install -e '.[vector]'，首次会下载模型）",
+        help="用 embedding 向量检索（真实模式需先 pip install -e '.[vector]'，首次会下载模型；"
+             "配合 --dry-run 时改用离线向量桩，无需安装依赖）",
     )
     parser.add_argument("--version", action="version", version="ExamRAG " + config.VERSION)
     return parser
@@ -76,11 +77,12 @@ def _run_exam(
     dry_run: bool,
     semantic_mode: bool = False,
     vector_mode: bool = False,
+    embed_fn=None,
 ) -> None:
     """出题模式：按掌握等级加权检索，再让模型出题。"""
     related, levels, prompt = service.prepare_exam(
         topic, chunks, top_k=top_k,
-        semantic_mode=semantic_mode, vector_mode=vector_mode,
+        semantic_mode=semantic_mode, vector_mode=vector_mode, embed_fn=embed_fn,
     )
     print("（检索到：" + tags_of(related) + "｜等级：" + levels + "）")
     _print_evidence(topic, related)
@@ -97,11 +99,12 @@ def _run_question(
     dry_run: bool,
     semantic_mode: bool = False,
     vector_mode: bool = False,
+    embed_fn=None,
 ) -> None:
     """普通问答：检索上下文、拼提示词、输出回答。"""
     related, note, prompt = service.prepare_question(
         question, chunks, top_k=top_k, ask_fn=ask_fn,
-        semantic_mode=semantic_mode, vector_mode=vector_mode,
+        semantic_mode=semantic_mode, vector_mode=vector_mode, embed_fn=embed_fn,
     )
     if note:
         print(note)
@@ -113,7 +116,8 @@ def _run_question(
 
 
 def _repl(chunks: List[Chunk], top_k: int, ask_fn: AskFn, dry_run: bool,
-          semantic_mode: bool = False, vector_mode: bool = False) -> None:
+          semantic_mode: bool = False, vector_mode: bool = False,
+          embed_fn=None) -> None:
     """交互式命令行循环，保留原版使用习惯。"""
     print("已加载 %d 块资料。" % len(chunks))
     print(INTRO)
@@ -131,9 +135,9 @@ def _repl(chunks: List[Chunk], top_k: int, ask_fn: AskFn, dry_run: bool,
             if not topic:
                 print("请在「出题」后写上主题，例如：出题 信度")
                 continue
-            _run_exam(topic, chunks, top_k, ask_fn, dry_run, semantic_mode, vector_mode)
+            _run_exam(topic, chunks, top_k, ask_fn, dry_run, semantic_mode, vector_mode, embed_fn)
         else:
-            _run_question(cmd, chunks, top_k, ask_fn, dry_run, semantic_mode, vector_mode)
+            _run_question(cmd, chunks, top_k, ask_fn, dry_run, semantic_mode, vector_mode, embed_fn)
 
 
 def main(argv: List[str] = None) -> int:
@@ -144,6 +148,12 @@ def main(argv: List[str] = None) -> int:
         return 1
 
     ask_fn: AskFn = _dry_run_ask if args.dry_run else default_ask
+    # dry-run 的铁律是绝不联网：向量模式也改用离线向量桩，
+    # 避免 --dry-run --vector 在装有 sentence-transformers 的机器上真实加载/下载模型。
+    embed_fn = None
+    if args.dry_run and args.vector:
+        embed_fn = vector.offline_embed_fn
+        print("（dry-run + 向量模式：使用离线向量桩，不加载真实 embedding 模型）")
     try:
         chunks = service.load_material(args.material)
 
@@ -152,16 +162,16 @@ def main(argv: List[str] = None) -> int:
             if not topic:
                 raise ExamRAGError("请提供出题主题，例如：--exam 信度")
             _run_exam(topic, chunks, args.top_k, ask_fn, args.dry_run,
-                      args.semantic, args.vector)
+                      args.semantic, args.vector, embed_fn)
         elif args.question:
             _run_question(args.question, chunks, args.top_k, ask_fn, args.dry_run,
-                          args.semantic, args.vector)
+                          args.semantic, args.vector, embed_fn)
         elif args.topic:
             _run_question(args.topic, chunks, args.top_k, ask_fn, args.dry_run,
-                          args.semantic, args.vector)
+                          args.semantic, args.vector, embed_fn)
         else:
             _repl(chunks, args.top_k, ask_fn, args.dry_run,
-                  args.semantic, args.vector)
+                  args.semantic, args.vector, embed_fn)
     except (ExamRAGError, FileNotFoundError) as exc:
         print("错误：" + str(exc))
         return 1

@@ -28,6 +28,27 @@ from .retrieval import is_nav
 EmbedFn = Callable[[List[str]], List[List[float]]]
 Vector = List[float]
 
+# 离线向量桩的维度：足够区分文本、又足够小保证计算便宜。
+OFFLINE_DIM = 64
+
+
+def offline_embed_fn(texts: List[str]) -> List[List[float]]:
+    """dry-run 专用的离线向量桩：按字符 bigram 哈希生成确定性向量。
+
+    绝不加载 sentence-transformers、绝不联网、结果对同一文本永远相同。
+    向量之间的相似度没有语义含义，只保证 dry-run 全链路可跑通。
+    """
+    vectors: List[List[float]] = []
+    for text in texts:
+        vec = [0.0] * OFFLINE_DIM
+        for i in range(len(text) - 1):
+            gram = text[i:i + 2]
+            idx = int(hashlib.md5(gram.encode("utf-8")).hexdigest(), 16) % OFFLINE_DIM
+            vec[idx] += 1.0
+        norm = math.sqrt(sum(x * x for x in vec)) or 1.0
+        vectors.append([x / norm for x in vec])
+    return vectors
+
 
 def _cosine(a: Sequence[float], b: Sequence[float]) -> float:
     """稀疏/稠密通用的余弦相似度，只用标准库。"""
@@ -170,6 +191,6 @@ def retriever(
 
 
 __all__ = [
-    "EmbedFn", "Vector", "embed_texts", "get_embed_fn",
-    "vector_retrieve", "retriever",
+    "EmbedFn", "Vector", "OFFLINE_DIM", "embed_texts", "get_embed_fn",
+    "offline_embed_fn", "vector_retrieve", "retriever",
 ]

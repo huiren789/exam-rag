@@ -6,6 +6,8 @@ import sys
 import unittest
 from pathlib import Path
 
+from examrag import config
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -30,12 +32,12 @@ class CliTests(unittest.TestCase):
     def test_module_version(self):
         result = _run("-m", "examrag", "--version")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("0.5.1", result.stdout)
+        self.assertIn(config.VERSION, result.stdout)
 
     def test_tool_shim_version(self):
         result = _run("tool.py", "--version")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("0.5.1", result.stdout)
+        self.assertIn(config.VERSION, result.stdout)
 
     def test_dry_run_without_api_key(self):
         result = _run("-m", "examrag", "-q", "难度的定义", "--dry-run")
@@ -62,8 +64,24 @@ class CliTests(unittest.TestCase):
         self.assertIn("语义检索", result.stdout)
         self.assertIn("检索到", result.stdout)
 
-    def test_vector_missing_dependency_is_friendly(self):
+    def test_dry_run_vector_is_offline(self):
+        """dry-run + 向量模式必须离线可用：用离线向量桩，不需要安装依赖。"""
         result = _run("-m", "examrag", "-q", "信度", "--dry-run", "--vector")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("离线向量桩", result.stdout)
+        self.assertIn("检索到", result.stdout)
+        self.assertIn("已跳过 API 调用", result.stdout)
+        self.assertNotIn("向量检索需要额外依赖", result.stdout)
+
+    def test_exam_dry_run_vector_is_offline(self):
+        result = _run("-m", "examrag", "--exam", "信度", "--dry-run", "--vector")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("离线向量桩", result.stdout)
+        self.assertIn("已跳过 API 调用", result.stdout)
+
+    def test_vector_missing_dependency_is_friendly(self):
+        """真实模式（非 dry-run）+ 向量：缺依赖时给可操作的中文提示。"""
+        result = _run("-m", "examrag", "-q", "信度", "--vector")
         self.assertEqual(result.returncode, 1)
         self.assertIn("向量检索需要额外依赖", result.stdout)
         self.assertIn("pip install", result.stdout)

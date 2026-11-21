@@ -11,6 +11,7 @@
 
 from typing import Any, Callable, Dict, List, Optional
 import importlib.util
+import os
 
 from . import config, service
 from .llm import ExamRAGError, ask as default_ask
@@ -88,6 +89,16 @@ def create_app(
         if value < 1:
             raise HTTPException(status_code=400, detail="top_k 必须大于等于 1。")
 
+    # FileNotFoundError 的报错文本天然含本机绝对路径，绝不能原样回传给客户端；
+    # 统一转为固定文案，只提示配置项，不暴露文件系统细节。
+    MATERIAL_NOT_FOUND = "资料文件不存在或不可读，请检查 EXAMRAG_MATERIAL 配置。"
+
+    def _endpoint_error(exc: Exception) -> HTTPException:
+        """把业务异常转为安全的 400 响应。"""
+        if isinstance(exc, FileNotFoundError):
+            raise HTTPException(status_code=400, detail=MATERIAL_NOT_FOUND)
+        raise HTTPException(status_code=400, detail=str(exc))
+
     @app.get("/health")
     def health() -> Dict[str, Any]:
         """健康检查：只读一次本地资料，不暴露密钥或本机绝对路径。"""
@@ -95,7 +106,10 @@ def create_app(
             available = len(_chunks(None))
             material_error = None
         except (ExamRAGError, FileNotFoundError) as exc:
-            available, material_error = 0, str(exc)
+            available = 0
+            material_error = (
+                "资料文件不可读" if isinstance(exc, FileNotFoundError) else str(exc)
+            )
         return {
             "status": "ok" if material_error is None else "degraded",
             "version": config.VERSION,
@@ -120,7 +134,7 @@ def create_app(
                 vector_mode=body.vector, embed_fn=embed_fn,
             )
         except (ExamRAGError, FileNotFoundError) as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+            _endpoint_error(exc)
         return data
 
     @app.post("/ask")
@@ -136,7 +150,7 @@ def create_app(
                 vector_mode=body.vector, embed_fn=embed_fn,
             )
         except (ExamRAGError, FileNotFoundError) as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+            _endpoint_error(exc)
 
     @app.post("/exam")
     def exam_endpoint(body: ExamBody) -> Dict[str, Any]:
@@ -150,7 +164,7 @@ def create_app(
                 vector_mode=body.vector, embed_fn=embed_fn,
             )
         except (ExamRAGError, FileNotFoundError) as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+            _endpoint_error(exc)
 
     return app
 
@@ -189,7 +203,12 @@ def main() -> None:
         raise SystemExit(
             "缺少 uvicorn。请先运行：pip install -e \".[api]\""
         ) from exc
-    uvicorn.run(get_app(), host="127.0.0.1", port=8000)
+    # 端口可用 EXAMRAG_API_PORT 覆盖；非法值回落默认 8000。
+    try:
+        port = int(os.environ.get("EXAMRAG_API_PORT", "") or 8000)
+    except ValueError:
+        port = 8000
+    uvicorn.run(get_app(), host="127.0.0.1", port=port)
 
 
 if __name__ == "__main__":

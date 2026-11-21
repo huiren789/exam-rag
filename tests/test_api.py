@@ -1,8 +1,11 @@
 """HTTP API 测试：缺 fastapi/httpx 时整类跳过，不影响零依赖环境。"""
 
+import os
 import unittest
+from unittest import mock
 
-from examrag.models import as_chunks
+from examrag.models import as_chunks  # noqa: F401 供外部复用本模块时参考
+from tests.helpers import SAMPLE_CHUNKS, fake_embed, stub_ask
 
 try:
     from fastapi.testclient import TestClient
@@ -12,22 +15,13 @@ try:
 except ImportError:
     HAS_API_DEPS = False
 
-CHUNKS = as_chunks([
-    "【掌握·难度的定义】难度是试题难易程度的指标，常用通过率 P 表示。",
-    "【理解·信度的定义】信度是测验结果的一致性、稳定性程度。",
-    "【了解·效度的定义】效度指测验测到所要测特质的程度。",
-])
-
-
-def vector_embed(texts):
-    return [[1.0 if "难度" in t else 0.0, 1.0 if "信度" in t else 0.0] for t in texts]
+CHUNKS = SAMPLE_CHUNKS
 
 
 @unittest.skipUnless(HAS_API_DEPS, "未安装 fastapi/httpx，跳过 API 测试")
 class ApiTests(unittest.TestCase):
     def setUp(self):
-        stub = lambda prompt: "【测试桩】依据资料回答。"
-        self.client = TestClient(create_app(chunks=CHUNKS, ask_fn=stub))
+        self.client = TestClient(create_app(chunks=CHUNKS, ask_fn=stub_ask))
 
     def test_health(self):
         r = self.client.get("/health")
@@ -40,7 +34,7 @@ class ApiTests(unittest.TestCase):
         self.assertNotIn("/", r.json()["material"])
 
     def test_vector_retrieve(self):
-        client = TestClient(create_app(chunks=CHUNKS, embed_fn=vector_embed))
+        client = TestClient(create_app(chunks=CHUNKS, embed_fn=fake_embed))
         r = client.post("/retrieve", json={
             "question": "难度", "top_k": 2, "vector": True,
         })
@@ -51,7 +45,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(data["chunks"][0]["tag"], "掌握·难度的定义")
 
     def test_vector_ask_and_exam(self):
-        client = TestClient(create_app(chunks=CHUNKS, embed_fn=vector_embed, ask_fn=lambda p: "【测试桩】依据资料回答。"))
+        client = TestClient(create_app(chunks=CHUNKS, embed_fn=fake_embed, ask_fn=stub_ask))
         r = client.post("/ask", json={"question": "难度", "top_k": 2, "vector": True})
         self.assertEqual(r.status_code, 200)
         self.assertTrue(r.json()["evidence"])
@@ -110,6 +104,37 @@ class ApiTests(unittest.TestCase):
         r = self.client.post("/retrieve", json={"question": "x", "top_k": 0})
         self.assertEqual(r.status_code, 400)
         self.assertIn("top_k", r.json()["detail"])
+
+    def test_missing_material_never_leaks_path(self):
+        """资料路径错误时，错误响应必须不含本机绝对路径（H1 回归测试）。"""
+        missing = "data/no_such_material_for_test.txt"
+
+        for endpoint, payload in (
+            ("/retrieve", {"question": "难度"}),
+            ("/ask", {"question": "难度"}),
+            ("/exam", {"topic": "难度"}),
+        ):
+            r = self.client.post(endpoint, json={**payload, "material": missing})
+            self.assertEqual(r.status_code, 400, msg=endpoint)
+            detail = r.json()["detail"]
+            # 不含盘符、反斜杠、仓库根目录等任何文件系统痕迹
+            self.assertNotIn("\\", detail, msg=detail)
+            self.assertNotIn("no_such_material", detail, msg=detail)
+            self.assertIn("EXAMRAG_MATERIAL", detail, msg=detail)
+
+        # /health 在资料缺失时同样只给固定文案（app 不注入 chunks 才会真读文件）
+        with mock.patch.dict(os.environ, {"EXAMRAG_MATERIAL": missing}, clear=False):
+            client = TestClient(create_app(ask_fn=stub_ask))
+            r = client.get("/health")
+            self.assertEqual(r.status_code, 200)
+            data = r.json()
+            self.assertEqual(data["status"], "degraded")
+            self.assertEqual(data["material_error"], "资料文件不可读")
+            self.assertNotIn("\\", data["material_error"])
+            # material 字段只允许文件名（相对名），不允许出现路径分隔符或盘符
+            self.assertNotIn("\\", data["material"])
+            self.assertNotIn("/", data["material"])
+            self.assertNotIn(":", data["material"])
 
     def test_model_error_becomes_400(self):
         def broken(prompt):
