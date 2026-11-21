@@ -30,12 +30,12 @@ class CliTests(unittest.TestCase):
     def test_module_version(self):
         result = _run("-m", "examrag", "--version")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("0.5.0", result.stdout)
+        self.assertIn("0.5.1", result.stdout)
 
     def test_tool_shim_version(self):
         result = _run("tool.py", "--version")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("0.5.0", result.stdout)
+        self.assertIn("0.5.1", result.stdout)
 
     def test_dry_run_without_api_key(self):
         result = _run("-m", "examrag", "-q", "难度的定义", "--dry-run")
@@ -61,6 +61,12 @@ class CliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("语义检索", result.stdout)
         self.assertIn("检索到", result.stdout)
+
+    def test_vector_missing_dependency_is_friendly(self):
+        result = _run("-m", "examrag", "-q", "信度", "--dry-run", "--vector")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("向量检索需要额外依赖", result.stdout)
+        self.assertIn("pip install", result.stdout)
 
 
 if __name__ == "__main__":

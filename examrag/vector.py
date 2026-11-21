@@ -19,7 +19,8 @@ from functools import partial
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
-from .config import LEVEL_WEIGHTS, VECTOR_CACHE_PATH, VECTOR_MODEL
+from . import config
+from .config import LEVEL_WEIGHTS
 from .llm import ExamRAGError
 from .models import Chunk, as_chunks
 from .retrieval import is_nav
@@ -43,7 +44,9 @@ def _cosine(a: Sequence[float], b: Sequence[float]) -> float:
 
 
 def _cache_file(path: Optional[Union[str, Path]] = None) -> Path:
-    return Path(path) if path else Path(VECTOR_CACHE_PATH)
+    if path:
+        return Path(path)
+    return Path(config.get_vector_cache_path())
 
 
 def _cache_key(model: str, text: str) -> str:
@@ -67,7 +70,7 @@ def _write_cache(path: Path, data: Dict[str, List[float]]) -> None:
         pass
 
 
-def get_embed_fn(model_name: str = VECTOR_MODEL) -> EmbedFn:
+def get_embed_fn(model_name: Optional[str] = None) -> EmbedFn:
     """惰性加载 sentence-transformers；缺依赖时给出可操作的中文提示。"""
     try:
         from sentence_transformers import SentenceTransformer  # type: ignore
@@ -77,7 +80,7 @@ def get_embed_fn(model_name: str = VECTOR_MODEL) -> EmbedFn:
             "首次使用还会下载 embedding 模型；不想装依赖可继续用词面或 TF-IDF 检索。"
         ) from exc
 
-    model = SentenceTransformer(model_name)
+    model = SentenceTransformer(model_name or config.get_vector_model())
 
     def embed(texts: List[str]) -> List[List[float]]:
         raw = model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
@@ -89,12 +92,13 @@ def get_embed_fn(model_name: str = VECTOR_MODEL) -> EmbedFn:
 def embed_texts(
     texts: Sequence[str],
     embed_fn: Optional[EmbedFn] = None,
-    model_name: str = VECTOR_MODEL,
+    model_name: Optional[str] = None,
     cache_path: Optional[Union[str, Path]] = None,
 ) -> List[Vector]:
     """批量取向量；命中缓存的原文不再重复计算。"""
     if not texts:
         return []
+    model_name = model_name or config.get_vector_model()
     fn = embed_fn or get_embed_fn(model_name)
     path = _cache_file(cache_path)
     cache = _read_cache(path)
@@ -119,10 +123,11 @@ def vector_retrieve(
     weighted: bool = False,
     return_score: bool = False,
     embed_fn: Optional[EmbedFn] = None,
-    model_name: str = VECTOR_MODEL,
+    model_name: Optional[str] = None,
     cache_path: Optional[Union[str, Path]] = None,
 ) -> Union[List[Chunk], Tuple[List[Chunk], float]]:
     """用 embedding 余弦相似度检索，与另两种检索器共用同一契约。"""
+    model_name = model_name or config.get_vector_model()
     blocks = as_chunks(chunks)
     if not blocks:
         return ([], 0.0) if return_score else []
@@ -154,7 +159,7 @@ def vector_retrieve(
 
 def retriever(
     embed_fn: Optional[EmbedFn] = None,
-    model_name: str = VECTOR_MODEL,
+    model_name: Optional[str] = None,
     cache_path: Optional[Union[str, Path]] = None,
 ) -> Callable[..., Union[List[Chunk], Tuple[List[Chunk], float]]]:
     """构造可注入策略层的检索器；把向量相关参数固化进去。"""

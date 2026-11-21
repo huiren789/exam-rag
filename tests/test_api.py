@@ -50,6 +50,15 @@ class ApiTests(unittest.TestCase):
         self.assertTrue(data["evidence"])
         self.assertEqual(data["chunks"][0]["tag"], "掌握·难度的定义")
 
+    def test_vector_ask_and_exam(self):
+        client = TestClient(create_app(chunks=CHUNKS, embed_fn=vector_embed, ask_fn=lambda p: "【测试桩】依据资料回答。"))
+        r = client.post("/ask", json={"question": "难度", "top_k": 2, "vector": True})
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.json()["evidence"])
+        r = client.post("/exam", json={"topic": "难度", "top_k": 2, "vector": True})
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.json()["evidence"])
+
     def test_evidence_in_answer(self):
         r = self.client.post("/ask", json={"question": "难度的定义", "top_k": 2})
         self.assertEqual(r.status_code, 200)

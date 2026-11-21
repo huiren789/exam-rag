@@ -26,7 +26,7 @@ ExamRAG 把「找资料」这一步放在本地完成。检索不联网、不花
 - 离线演示：`--dry-run` 不调用模型，只打印检索结果和提示词，不需要密钥。
 - Web 界面：一个单页演示界面，提问 / 出题 / 只看检索三个标签，展示带出处的回答；未配密钥时「只看检索」仍可用。
 - 可选 HTTP API：FastAPI 提供 `/ask`、`/exam`、`/retrieve`、`/health` 四个接口，带自动生成的 Swagger 文档。
-- 零第三方依赖：核心与语义检索都用 Python 标准库；Web/API 与向量检索按需安装。78 个离线测试，CI 覆盖 Python 3.8 / 3.11 / 3.13。
+- 零第三方依赖：核心与语义检索都用 Python 标准库；Web/API 与向量检索按需安装。82 个离线测试，CI 覆盖 Python 3.8 / 3.11 / 3.13。
 
 ## 安装方法
 
@@ -222,6 +222,8 @@ python -m examrag -q "难度的定义" --dry-run
 | `EXAMRAG_BASE_URL` | 环境变量 → `.env` → 默认硅基流动地址 | 换其他 OpenAI 兼容接口 |
 | `EXAMRAG_MODEL` | 环境变量 → `.env` → `Qwen/Qwen3-8B` | 换模型 |
 | `EXAMRAG_MATERIAL` | 环境变量 → `.env` → `data/material.txt` | 换资料文件；相对路径按仓库根算 |
+| `EXAMRAG_VECTOR_MODEL` | 环境变量 → `.env` → `BAAI/bge-small-zh-v1.5` | 换 embedding 模型 |
+| `EXAMRAG_VECTOR_CACHE` | 环境变量 → `.env` → `.cache/vectors.json` | 换向量缓存位置；相对路径按仓库根算 |
 | `--material` | 命令行 | 优先级最高 |
 
 ## 代码结构
@@ -242,7 +244,7 @@ examrag/
   web.py         Web 演示界面入口
   static/        演示页 HTML
 data/material.txt   内置资料，99 块
-tests/              78 个离线测试（API 测试在缺依赖时自动跳过）
+tests/              82 个离线测试（API 测试在缺依赖时自动跳过）
 examples/           示例输出，含 api_examples.txt 与 eval_cases.json
 docs/adr/           架构决策记录
 UPLOAD.md           上传 GitHub 的步骤
@@ -255,7 +257,7 @@ tool.py             旧入口
 python -m unittest discover -s tests -v
 ```
 
-78 个测试，不需要密钥，也不需要联网。核心 65 个在任何环境都跑（向量测试用注入桩，不下载模型）；13 个 API / Web 测试在装了 `fastapi`/`httpx` 时才运行，缺依赖会自动跳过。GitHub Actions 在每次 push 和 pull request 时分两组运行：核心测试覆盖 Python 3.8 / 3.11 / 3.13，API 测试覆盖 3.11 / 3.13。
+82 个测试，不需要密钥，也不需要联网。核心 68 个在任何环境都跑（向量测试用注入桩，不下载模型）；14 个 API / Web 测试在装了 `fastapi`/`httpx` 时才运行，缺依赖会自动跳过。GitHub Actions 在每次 push 和 pull request 时分两组运行：核心测试覆盖 Python 3.8 / 3.11 / 3.13，API 测试覆盖 3.11 / 3.13。
 
 资料块在 `models.py` 里解析成 `Chunk` 对象，标签和掌握等级全链路只读字段，不再重复正则。词面、TF-IDF 与 embedding 三种检索器遵守同一个函数契约，策略层通过 `retrieve_fn` 注入检索器，所以查询改写、重难点汇总和并列概念拆分对三种模式都生效。三种检索器的分数口径不同，命中阈值分别设定，避免误触发查询改写。
 
@@ -287,6 +289,10 @@ python -m unittest discover -s tests -v
 ## 架构决策
 
 选择理由与取舍记录在 [docs/adr](docs/adr)：零依赖核心、统一检索器契约、检索策略分层、逐句依据。
+
+## 参与贡献
+
+开发流程、怎么加检索器、怎么改评测集见 [CONTRIBUTING](CONTRIBUTING.md)；版本历史见 [CHANGELOG](CHANGELOG.md)。
 
 ## License
 

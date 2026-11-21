@@ -77,6 +77,35 @@ class VectorTests(unittest.TestCase):
         self.assertIn("pip install", str(ctx.exception))
 
 
+class VectorConfigTests(unittest.TestCase):
+    def test_env_overrides_model_and_cache(self):
+        import os
+        from examrag import config as cfg
+
+        old_model = os.environ.get("EXAMRAG_VECTOR_MODEL")
+        old_cache = os.environ.get("EXAMRAG_VECTOR_CACHE")
+        try:
+            os.environ["EXAMRAG_VECTOR_MODEL"] = "custom/model"
+            os.environ["EXAMRAG_VECTOR_CACHE"] = "tmp/vectors.json"
+            self.assertEqual(cfg.get_vector_model(), "custom/model")
+            self.assertEqual(cfg.get_vector_cache_path(), cfg.ROOT / "tmp" / "vectors.json")
+        finally:
+            if old_model is None:
+                os.environ.pop("EXAMRAG_VECTOR_MODEL", None)
+            else:
+                os.environ["EXAMRAG_VECTOR_MODEL"] = old_model
+            if old_cache is None:
+                os.environ.pop("EXAMRAG_VECTOR_CACHE", None)
+            else:
+                os.environ["EXAMRAG_VECTOR_CACHE"] = old_cache
+
+    def test_defaults_fall_back_to_constants(self):
+        from examrag import config as cfg
+
+        self.assertEqual(cfg.get_vector_model(), cfg.VECTOR_MODEL)
+        self.assertEqual(cfg.get_vector_cache_path(), cfg.VECTOR_CACHE_PATH)
+
+
 class VectorServiceTests(unittest.TestCase):
     def test_vector_mode_note_and_no_rewrite(self):
         calls = []

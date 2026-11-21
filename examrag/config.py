@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import Dict, Optional
 
-VERSION = "0.5.0"
+VERSION = "0.5.1"
 
 # 仓库根目录：无论从哪个工作目录启动，都能找到内置资料。
 ROOT = Path(__file__).resolve().parent.parent
@@ -51,8 +51,32 @@ SEMANTIC_HIT_SCORE = 0.08
 VECTOR_HIT_SCORE = 0.25
 
 # 可选 embedding 检索：模型名与向量缓存位置（缓存不入 git）。
+# 可用 EXAMRAG_VECTOR_MODEL / EXAMRAG_VECTOR_CACHE 覆盖，见下方函数。
 VECTOR_MODEL = "BAAI/bge-small-zh-v1.5"
 VECTOR_CACHE_PATH = ROOT / ".cache" / "vectors.json"
+
+
+def get_vector_model() -> str:
+    """embedding 模型名：环境变量 → .env → 默认 bge-small-zh。"""
+    return (
+        os.environ.get("EXAMRAG_VECTOR_MODEL", "").strip()
+        or _load_dotenv().get("EXAMRAG_VECTOR_MODEL", "").strip()
+        or VECTOR_MODEL
+    )
+
+
+def get_vector_cache_path() -> Path:
+    """向量缓存路径：环境变量 → .env → 默认仓库根 .cache/vectors.json。"""
+    env_path = (
+        os.environ.get("EXAMRAG_VECTOR_CACHE", "").strip()
+        or _load_dotenv().get("EXAMRAG_VECTOR_CACHE", "").strip()
+    )
+    if env_path:
+        candidate = Path(env_path).expanduser()
+        if not candidate.is_absolute():
+            candidate = ROOT / candidate
+        return candidate
+    return VECTOR_CACHE_PATH
 
 
 def _load_dotenv(path: Optional[Path] = None) -> Dict[str, str]:
