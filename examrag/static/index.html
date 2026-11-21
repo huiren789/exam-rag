@@ -111,8 +111,9 @@
       <label class="hint" style="margin:0;display:flex;align-items:center;gap:5px;cursor:pointer">
         <input type="checkbox" id="semantic" style="width:auto;margin:0"> TF-IDF 检索
       </label>
-      <label class="hint" style="margin:0;display:flex;align-items:center;gap:5px;cursor:pointer">
-        <input type="checkbox" id="vector" style="width:auto;margin:0" disabled> 向量检索
+      <label class="hint" id="vector-wrap" for="vector"
+             style="margin:0;display:none;align-items:center;gap:5px;cursor:pointer">
+        <input type="checkbox" id="vector" style="width:auto;margin:0"> 向量检索
       </label>
       <button class="run" id="run">提交</button>
     </div>
@@ -180,8 +181,8 @@ async function checkHealth() {
     const d = await r.json();
     const on = d.api_key_configured;
     const hasVector = !!d.vector_available;
-    $('vector').disabled = !hasVector;
-    $('vector').title = hasVector ? '使用 embedding 向量检索' : '服务端未安装向量检索依赖';
+    // 向量检索依赖服务端可选包：没装就整块隐藏，不留一个永远点不了的灰框。
+    $('vector-wrap').style.display = hasVector ? 'flex' : 'none';
     $('status').innerHTML =
       '<span class="dot ' + (on ? 'on' : 'off') + '"></span>' +
       '服务正常 · 资料 ' + escapeHtml(d.chunks_available) + ' 块 · 模型 ' + escapeHtml(d.model) +
