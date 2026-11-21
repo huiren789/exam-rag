@@ -193,6 +193,9 @@ class ApiTests(unittest.TestCase):
         self.assertIn('id="history"', r.text)
         self.assertIn("data-tag", r.text)
         self.assertIn("examrag-theme", r.text)
+        # 云 SDK 必须本地内嵌加载，不依赖第三方 CDN（jsdelivr 国内不稳定）
+        self.assertIn("/static/workbuddy-cloud-sdk.js", r.text)
+        self.assertNotIn("cdn.jsdelivr.net", r.text)
         r = client.get("/static/index.html")
         self.assertEqual(r.status_code, 200)
 

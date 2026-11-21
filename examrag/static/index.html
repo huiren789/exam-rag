@@ -219,7 +219,8 @@
   footer { text-align: center; color: var(--muted); font-size: .82rem; padding: 26px 12px 40px; }
   footer a { color: var(--accent); }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@tencent-ai/workbuddy-cloud-sdk@dev/lib/index.global.js"></script>
+<!-- 云 SDK 本地内嵌：不依赖任何第三方 CDN（jsdelivr 在国内网络不稳定），保证离线/内网也能加载 -->
+<script src="/static/workbuddy-cloud-sdk.js"></script>
 <script src="/static/cloud-config.js"></script>
 </head>
 <body>
