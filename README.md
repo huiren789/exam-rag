@@ -4,7 +4,7 @@
 ![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue)
 ![MIT](https://img.shields.io/badge/license-MIT-green)
 
-ExamRAG 是一个可溯源的课程复习工具——用本地检索挑出资料块交给大模型作答，每个回答都能翻回原文核对。提供命令行、Web 界面和 HTTP API 三种用法，核心功能零第三方依赖，另有可选 embedding 向量检索。**在线演示：https://examrag-demo.app.workbuddy.host/?sharecode=YTW7YFIS3R** 。已有 11 位同学体验使用。
+ExamRAG 是一个可溯源的课程复习工具——用本地检索挑出资料块交给大模型作答，每个回答都能翻回原文核对。提供命令行、Web 界面和 HTTP API 三种用法，核心功能零第三方依赖，另有可选 embedding 向量检索。**在线演示：https://examrag-demo.app.workbuddy.host/?sharecode=YTW7YFIS3R** 。作者本人作为第一用户在真实复习场景中使用，并结合自建评测问题集完成 4 轮迭代。
 
 ## 解决什么问题
 
