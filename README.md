@@ -3,14 +3,49 @@
 [![tests](https://github.com/huiren789/exam-rag/actions/workflows/tests.yml/badge.svg)](https://github.com/huiren789/exam-rag/actions/workflows/tests.yml)
 ![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue)
 ![MIT](https://img.shields.io/badge/license-MIT-green)
+[![在线演示](https://img.shields.io/badge/demo-live-green)](https://examrag-demo.app.workbuddy.host/?sharecode=YTW7YFIS3R)
 
-ExamRAG 是一个可溯源的课程复习工具——用本地检索挑出资料块交给大模型作答，每个回答都能翻回原文核对。提供命令行、Web 界面和 HTTP API 三种用法，核心功能零第三方依赖，另有可选 embedding 向量检索。**在线演示：https://examrag-demo.app.workbuddy.host/?sharecode=YTW7YFIS3R** 。作者本人作为第一用户在真实复习场景中使用，并结合自建评测问题集完成 4 轮迭代。
+<div align="center">
+
+<img src="assets/demo.png" alt="ExamRAG 演示：提问、检索与逐句依据" width="880">
+
+**有据可依的课程复习搭档**
+
+**零依赖 · 可溯源 · 能换资料** —— 本地检索挑出资料块，只把这些交给大模型；每个回答都标出依据，能翻回原文核对。
+
+[在线演示（免密钥）](https://examrag-demo.app.workbuddy.host/?sharecode=YTW7YFIS3R) ·
+[解决什么问题](#解决什么问题) ·
+[30 秒换成你的课程](#30-秒换成你的课程)
+
+</div>
+
+**语言**：**中文** · [English](README_en.md) · [日本語](README_ja.md) · [한국어](README_ko.md) · [Español](README_es.md)
+
+> 内置《教育测量与评价》资料做示范，但**换一份 `data/material.txt` 就能用于任何课程**；核心检索只用 Python 标准库，不装任何第三方库也能跑。作者本人作为第一用户在真实复习场景中使用，并结合自建评测问题集完成 4 轮迭代。
 
 ## 解决什么问题
 
 备考时有两个麻烦：直接问大模型，答案可能看着像真的，其实是编的；自己翻教材，又很难快速定位到要找的那一块。
 
 ExamRAG 把「找资料」这一步放在本地完成。检索不联网、不花钱，结果也看得见；只有筛出来的几块资料会发给模型。提示词要求模型只使用这些资料，并在回答末尾写出依据；资料里没有的内容，要回答「资料中未提及」。
+
+## 30 秒换成你的课程
+
+内置的《教育测量与评价》只是示例。要用在你自己的课程上，把复习资料按同样的格式整理成纯文本即可：
+
+```text
+【掌握·知识点名称】知识点正文，一段话说清一个概念。
+【理解·另一个知识点】……
+【了解·第三个知识点】……
+```
+
+三种标签（掌握 / 理解 / 了解）决定出题时的加权优先级，正文尽量一段一个概念。然后：
+
+```bash
+python -m examrag -q "你的问题" --material my.txt    # 换资料
+```
+
+或者设 `EXAMRAG_MATERIAL=my.txt` 一劳永逸。检索、溯源、分层出题、Web 界面全部照常工作——**这是它相比「只能用于某门课」的复习工具最关键的差别**。资料格式细则见 [资料范围](#资料范围)。
 
 ## 主要功能
 
