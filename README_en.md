@@ -9,9 +9,9 @@
 
 <img src="assets/demo.png" alt="ExamRAG demo: ask, retrieve, cite" width="880">
 
-**Course review you can actually verify**
+**A course reviewer you can check against the source**
 
-**Zero dependencies · Traceable · Bring your own material** — retrieval runs locally to pick relevant chunks, only those chunks go to the LLM, and every answer points back to the exact source sentence.
+Answers point back to the exact sentence they came from. Retrieval runs locally, and the reading material is yours to replace.
 
 [Live demo (no API key)](https://examrag-demo.app.workbuddy.host/?sharecode=YTW7YFIS3R) ·
 [The problem](#the-problem) ·
@@ -21,73 +21,79 @@
 
 **Language**: [中文](README.md) · **English** · [日本語](README_ja.md) · [한국어](README_ko.md) · [Español](README_es.md)
 
-> Ships with a sample *Educational Measurement* course, but **drop in your own `data/material.txt` and it works for any subject**. Core retrieval uses only the Python standard library — no third-party packages needed. The author is the first real user, iterating over 4 rounds against a self-built evaluation set.
+> The bundled *Educational Measurement* text is a sample. Replace `data/material.txt` and the same pipeline works for any course. Core retrieval needs only the Python standard library. The author used it for their own revision and ran four rounds of changes against a self-built question set.
 
 ## The problem
 
-Asking an LLM straight away gives answers that look right but may be fabricated. Reading the textbook yourself makes it hard to locate the exact passage you need.
+Ask a model straight away and the answer reads well but has no traceable source. Read the textbook yourself and you spend the time hunting for the right paragraph.
 
-ExamRAG does the "find the material" step locally. Retrieval is offline, free, and visible; only the selected chunks are sent to the model. The prompt requires the model to use only those chunks, cite them at the end, and answer "not mentioned in the material" when the data doesn't cover the question.
+ExamRAG keeps the "find the material" step on your machine. Retrieval is offline and visible; only the selected chunks go to the model. The prompt requires the model to use only those chunks, name the source at the end, and answer "not mentioned in the material" when the data doesn't cover the question.
 
 ## Use your own course in 30 seconds
 
-The bundled *Educational Measurement* material is just an example. To use your own course, format your notes as plain text like this:
+The included material is just an example. Your notes need to be plain text with the tags the parser recognizes. Keep the tag names in Chinese:
 
 ```text
-[Mastered·Concept name] Body text, one idea per paragraph.
-[Understood·Another concept] ...
-[Familiar·A third concept] ...
+【掌握·Concept name】One idea per paragraph.
+【理解·Another concept】...
+【了解·A third concept】...
 ```
 
-The three labels (Mastered / Understood / Familiar) control question-generation weighting. Then:
+The three tags — 掌握 / 理解 / 了解 (mastered / understood / familiar) — set how heavily each chunk is weighted when generating questions. Then:
 
 ```bash
 python -m examrag -q "your question" --material my.txt
 ```
 
-Or set `EXAMRAG_MATERIAL=my.txt` once and forget it. Retrieval, citation, weighted question generation, and the Web UI all work unchanged — **this is the key difference from a tool locked to one course**.
+Or set `EXAMRAG_MATERIAL=my.txt` once instead of passing the flag each time. Swap the file and everything downstream keeps working: retrieval, citations, weighted question generation, the Web UI. The tool isn't tied to one course. See [Material format](#material-format) for the details.
 
 ## Features
 
-- **Local lexical retrieval**: bigram frequency matching, title boost, TOC/summary downweight — pure standard library.
-- **TF-IDF semantic retrieval**: optional `--semantic` mode, also standard library and offline.
-- **Vector retrieval**: optional `--vector` mode with a cached embedding model (`pip install -e ".[vector]"`).
-- **Sentence-level evidence**: answers and retrieval results highlight matched source sentences; click through to the original text in the Web UI.
-- **Weighted question generation**: prioritizes "Mastered" chunks by ×3 / ×2 / ×1 weighting.
-- **Query rewriting, key-point summarization, split-concept retrieval**: strategy layer injected via a single `retrieve_fn` contract.
-- **Offline dry-run**: `--dry-run` prints retrieval results and the assembled prompt with no network or API key.
-- **Web UI + FastAPI**: three tabs (ask / quiz / retrieve-only) and five endpoints with auto-generated Swagger docs.
-- **89 offline tests**, CI on Python 3.8 / 3.11 / 3.13 plus ruff linting.
+- **Local lexical retrieval**: bigram counts, title boost, lower weight for table-of-contents and summary blocks. Python standard library only.
+- **TF-IDF retrieval**: `--semantic`, also offline and dependency-free.
+- **Vector retrieval**: `--vector`, with cached embeddings. Install `pip install -e ".[vector]"` and download a model on first use.
+- **Sentence-level evidence**: results name the matched source sentences and their lexical overlap. In the Web UI, clicking a source or evidence line highlights the corresponding chunk in the results.
+- **Weighted question generation**: 掌握 chunks at ×3, 理解 at ×2, 了解 at ×1.
+- **Query rewriting, key-point summaries, split-concept retrieval**: all run through one `retrieve_fn` contract, so every retrieval mode gets them.
+- **Offline dry-run**: `--dry-run` prints the retrieval results and the assembled prompt without a network call or API key. `--vector` still works offline with a deterministic stub.
+- **Web UI and FastAPI**: three tabs (ask / quiz / retrieve-only) and five endpoints with auto-generated Swagger docs.
+- **89 offline tests**, CI on Python 3.8 / 3.11 / 3.13, plus ruff linting.
 
 ## Quick start
 
 ```bash
 git clone https://github.com/huiren789/exam-rag.git
 cd exam-rag
-python -m examrag -q "What is difficulty?" --dry-run   # works offline, no key
-python -m examrag                                       # interactive REPL
+python -m examrag -q "What is difficulty?" --dry-run   # offline, no key
+python -m examrag                                       # interactive mode
 ```
 
-To call a real model, copy `.env.example` to `.env` and set `SILICONFLOW_API_KEY` (or any OpenAI-compatible endpoint via `EXAMRAG_BASE_URL`). The Web UI is powered by WorkBuddy Cloud so the [live demo](https://examrag-demo.app.workbuddy.host/?sharecode=YTW7YFIS3R) needs no key at all.
+To call a real model, copy `.env.example` to `.env` and set `SILICONFLOW_API_KEY`. Any OpenAI-compatible endpoint works through `EXAMRAG_BASE_URL`. The [live demo](https://examrag-demo.app.workbuddy.host/?sharecode=YTW7YFIS3R) uses WorkBuddy Cloud for generation, so no key is needed there; retrieval and citation still come from the local backend.
 
 ## Evaluation
 
-Nine hand-labeled questions on the bundled course. `python -m examrag.evaluate --mode lexical|semantic|vector`.
+Nine hand-labeled questions and their expected chunks live in `examples/eval_cases.json`. Run `python -m examrag.evaluate --mode lexical|semantic|vector`.
 
 | Mode | hit@1 | hit@3 | MRR |
 | --- | --- | --- | --- |
 | Lexical (default) | 0.778 | 0.889 | 0.815 |
 | TF-IDF | 0.556 | 1.000 | 0.741 |
 
-These are regression metrics on a historical sample, not a success rate on real-world use.
+These are regression numbers on a historical sample. They say nothing about how often the tool is right during real revision.
+
+## Material format
+
+Write one concept per paragraph and mark each block with 掌握 / 理解 / 了解. The bundled *Educational Measurement* material has 99 blocks covering chapters 1, 2, 4, 5 and 6, plus end-of-chapter summaries and exercises. Chapter 3 has no body blocks in the source material, and chapter 6 has no separate heading line. That's how the source is; it hasn't been filled in artificially.
 
 ## Known limitations
 
-- Default retrieval is lexical; TF-IDF helps with phrasing, embeddings are needed for true synonym-level recall.
-- Evidence sentences use Chinese punctuation heuristics; very long or cross-sentence statements may be located imprecisely.
-- Material must be formatted by hand — no PDF/Word import yet.
-- No conversational context; each question is retrieved independently.
-- The HTTP API listens on 127.0.0.1 with no auth; add authentication and rate limiting before exposing it.
+- Default retrieval matches words. TF-IDF helps with different phrasing; embeddings are needed for synonym-level recall.
+- Evidence sentences are split on Chinese punctuation. Very long or cross-sentence claims may be located imprecisely.
+- Material must be formatted by hand — no PDF or Word import yet.
+- No conversation history; each question is retrieved independently.
+- The HTTP API binds to 127.0.0.1 with no authentication. Add auth and rate limiting before exposing it.
+- Answer quality depends on the model. The call chain is covered by stub functions and a local mock server; no commercial API has been called with a real key.
+- Don't put API keys in material files. Untrusted material can carry prompt injection.
 
 ## Docs
 
